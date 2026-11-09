@@ -97,3 +97,29 @@ def test_circuit_breaker_half_opens_after_the_cooldown():
     breaker.record_failure("p")
     breaker.check("p")          # reset_after elapsed, so a trial call is allowed
     assert breaker.snapshot()["p"]["open"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_paced_provider_is_skipped_so_the_chain_still_delivers(tmp_path):
+    """A provider that cannot be called yet must not stall or fail the run."""
+    from forge.config import Settings
+    from forge.providers.image.registry import ImageRegistry
+    from forge.providers.throttle import LIMITER
+
+    settings = Settings(
+        image_providers="pollinations,card",
+        pollinations_min_interval_seconds=600.0,
+        out_dir=tmp_path, db_path=tmp_path / "t.db",
+    )
+    LIMITER.penalise("image:pollinations", 600.0)
+    try:
+        registry = ImageRegistry(settings)
+        result, attempts = await registry.generate(
+            prompt="a test", negative="", seed=1, title="Paced",
+            style_label="Article", palette="ink_amber", budget=5.0,
+        )
+        assert result.provider == "card"
+        paced = next(a for a in attempts if a["provider"] == "pollinations")
+        assert paced["skipped"] == "paced"
+    finally:
+        LIMITER.release("image:pollinations")

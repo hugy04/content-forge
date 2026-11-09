@@ -20,6 +20,9 @@ async def run(ctx, deps) -> None:
             title=ctx.outline.get("title") or ctx.topic,
             style_label=STYLES[ctx.selection.style].label,
             palette=ctx.selection.palette,
+            # Leave room for publish; never spend the whole remaining budget
+            # waiting on a paced provider.
+            budget=max(0.0, ctx.deadline.remaining - 25),
         )
     except ProviderError as exc:
         ctx.errors.append(f"image generation failed entirely: {exc}")

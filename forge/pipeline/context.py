@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from forge.diversity.engine import Selection
-from forge.providers.text.claude import Usage
+from forge.providers.text.usage import Usage
 
 
 class DeadlineExceeded(RuntimeError):

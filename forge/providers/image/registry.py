@@ -13,7 +13,8 @@ from typing import Any
 from forge.config import Settings
 from forge.providers.image.base import ImageResult
 from forge.providers.image.card import CardProvider
-from forge.providers.retry import BREAKER, ProviderError, retrying
+from forge.providers.retry import BREAKER, ProviderError, RateLimited, retrying
+from forge.providers.throttle import LIMITER, TooLongToWait
 
 log = logging.getLogger("forge.image")
 
@@ -46,7 +47,10 @@ class ImageRegistry:
 
     async def generate(self, *, prompt: str, negative: str, seed: int, title: str,
                        style_label: str, palette: str,
-                       chain: list[str] | None = None) -> tuple[ImageResult, list[dict[str, Any]]]:
+                       chain: list[str] | None = None,
+                       budget: float | None = None) -> tuple[ImageResult, list[dict[str, Any]]]:
+        """Walk the chain. `budget` is the seconds the run can still spend here;
+        a provider whose pacing needs longer than that is skipped, not waited on."""
         chain = chain or self.settings.image_provider_chain
         if "card" not in chain and "fake" not in chain:
             chain = [*chain, "card"]   # never leave a run without a visual asset
@@ -73,7 +77,14 @@ class ImageRegistry:
                         seed=seed, timeout=self.settings.image_timeout_seconds,
                     )
                 else:
-                    result = await self._with_retry(provider, name, prompt, negative, seed)
+                    result = await self._with_retry(
+                        provider, name, prompt, negative, seed, budget
+                    )
+            except TooLongToWait as exc:
+                attempts.append({"provider": name, "ok": False, "error": str(exc),
+                                 "skipped": "paced"})
+                log.info("image provider %s skipped: %s", name, exc)
+                continue
             except ProviderError as exc:
                 attempts.append({"provider": name, "ok": False, "error": str(exc)})
                 log.warning("image provider %s exhausted: %s", name, exc)
@@ -85,19 +96,34 @@ class ImageRegistry:
         raise ProviderError(f"every image provider failed: {attempts}")
 
     async def _with_retry(self, provider, name: str, prompt: str, negative: str,
-                          seed: int) -> ImageResult:
+                          seed: int, budget: float | None = None) -> ImageResult:
+        key = f"image:{name}"
+        interval = self.settings.image_min_interval(name)
+        allowance = budget if budget is not None else float(
+            self.settings.image_timeout_seconds)
+
         async for attempt in retrying(attempts=3, initial=1.5, maximum=10.0):
             with attempt:
-                BREAKER.check(f"image:{name}")
+                BREAKER.check(key)
+                # Pace before the call. TooLongToWait is deliberately not a
+                # ProviderError, so it escapes the retry loop and moves the
+                # chain on instead of being retried.
+                waited = await LIMITER.acquire(key, interval, allowance)
+                allowance -= waited
                 try:
                     result = await provider.generate(
                         prompt=prompt, negative=negative,
                         width=self.settings.image_width, height=self.settings.image_height,
                         seed=seed, timeout=self.settings.image_timeout_seconds,
                     )
-                except ProviderError:
-                    BREAKER.record_failure(f"image:{name}")
+                except RateLimited as exc:
+                    # The server knows its own limit better than our config does.
+                    LIMITER.penalise(key, exc.retry_after or interval)
+                    BREAKER.record_failure(key)
                     raise
-                BREAKER.record_success(f"image:{name}")
+                except ProviderError:
+                    BREAKER.record_failure(key)
+                    raise
+                BREAKER.record_success(key)
                 return result
         raise ProviderError("unreachable")

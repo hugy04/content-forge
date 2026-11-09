@@ -32,7 +32,7 @@ from forge.pipeline.stages import (
     publish as publish_stage,
     qc as qc_stage,
 )
-from forge.providers.text.claude import ClaudeTextProvider, FakeTextProvider, Usage
+from forge.providers.text.usage import Usage
 from forge.store.db import Store
 
 log = logging.getLogger("forge.runner")
@@ -46,13 +46,32 @@ class Deps:
     text: Any
 
 
+def build_text_provider(settings: Settings, usage: Usage) -> Any:
+    """Pick the text backend. Imports are local so that running on one provider
+    never requires the other's SDK to be installed."""
+    if settings.fake_providers:
+        from forge.providers.text.fake import FakeTextProvider
+        return FakeTextProvider(usage)
+
+    provider = settings.text_provider.strip().lower()
+    if provider == "gemini":
+        from forge.providers.text.gemini import GeminiTextProvider
+        return GeminiTextProvider(
+            settings.gemini_api_key, usage, default_model=settings.gemini_model
+        )
+    if provider in {"claude", "anthropic"}:
+        from forge.providers.text.claude import ClaudeTextProvider
+        return ClaudeTextProvider(settings.anthropic_api_key, usage)
+    raise ValueError(
+        f"unknown TEXT_PROVIDER={settings.text_provider!r}; "
+        "expected one of: gemini, claude"
+    )
+
+
 def build_deps(settings: Settings | None = None) -> Deps:
     settings = settings or get_settings()
-    usage = Usage()
-    text = (
-        FakeTextProvider(usage) if settings.fake_providers
-        else ClaudeTextProvider(settings.anthropic_api_key, usage)
-    )
+    usage = Usage(rate_override=settings.price_override)
+    text = build_text_provider(settings, usage)
     return Deps(
         settings=settings,
         store=Store(settings.db_path),

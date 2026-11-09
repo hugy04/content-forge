@@ -189,12 +189,14 @@ before the fallback is ever tried.
 
 | Failure | Detected by | Response |
 |---|---|---|
-| Claude 429 / 5xx / timeout | typed SDK exceptions | 3 retries, exponential + jitter; breaker on repeats |
-| Claude 4xx | status code | fail fast — a bug in our request, not transient |
-| Claude refusal | `stop_reason == "refusal"` | fail the run with the refusal category recorded |
-| Claude truncation | `stop_reason == "max_tokens"` | treated as failure, not silently shipped |
+| Text provider 429 / 5xx / timeout | status code or typed SDK exception | 3 retries, exponential + jitter; breaker on repeats |
+| Text provider 4xx | status code | fail fast — a bug in our request, not transient |
+| Refusal / safety block | `stop_reason` or `finishReason` | fail the run with the refusal category recorded |
+| Truncation | `max_tokens` / `MAX_TOKENS` finish reason | treated as failure, not silently shipped |
 | Malformed JSON | `json.loads` | retried; structured outputs make it near-impossible |
 | Image provider down | exception / non-200 / bad content-type | retry, then next provider in the chain |
+| Published rate limit (402/429 with a cool-off) | `RateLimited` carrying `retry_after` | **paced, not retried** — see below |
+| Model id retired (404) | ListModels resolution | falls forward to the newest available model, once per process |
 | Image provider returns an HTML error page with HTTP 200 | Pillow decode check | treated as a failure, not written to disk |
 | Every image provider down | chain exhausted | locally rendered card; run marked `partial` |
 | Draft fails the gate after 2 repairs | validators | published anyway, `partial`, failing checks attached |
@@ -202,6 +204,32 @@ before the fallback is ever tried.
 | Budget exhausted | `Deadline.require()` | run fails cleanly with elapsed timings recorded |
 | Duplicate request | idempotency key | returns the existing asset instead of paying twice |
 | Worker killed mid-run | `task_acks_late` | Celery redelivers; idempotency key prevents a duplicate |
+
+### Rate limits are paced, not retried
+
+Retry-with-backoff is the wrong instrument for a *published* limit. When
+Pollinations' anonymous tier says "one image every 45s per IP", three retries
+inside that window spend 20s of the run's budget and still fail. So a documented
+limit is handled by `forge/providers/throttle.py` instead: a process-wide
+limiter holds a next-allowed timestamp per provider, built from a configured
+floor and — authoritatively — from the server's own `Retry-After` or the
+seconds quoted in the error body.
+
+Two properties make this safe rather than merely slow:
+
+* **The limiter is deadline-aware.** `acquire()` takes the budget the run can
+  still spend. If pacing needs longer, it raises `TooLongToWait`, which is
+  deliberately *not* a `ProviderError`, so it escapes the retry loop and moves
+  the chain to the next provider rather than parking the run.
+* **The lock is held across the sleep**, so concurrent runs queue in turn
+  instead of all waking into the same window and re-tripping the limit.
+
+Measured on the free tier: two back-to-back runs both fell through to the
+rendered card before pacing existed; with pacing, both returned real generated
+images, at 101.1s and 93.1s end-to-end against a 300s budget.
+
+Across replicas this belongs in a shared Redis token bucket rather than process
+memory — noted in §7 and in the module docstring.
 
 **Status is three-valued on purpose.** `completed` means the gate passed *and*
 the image came from a generative provider. `partial` means a usable asset exists
@@ -219,12 +247,12 @@ finish, and the revise loop stops when under 30s remain.
 | Stage | Typical | Notes |
 |---|---|---|
 | plan | <10ms | pure Python, one SQLite read |
-| outline | 15–35s | Claude, effort `medium` |
-| draft | 30–70s | Claude, longest single call |
+| outline | 10–30s | text provider, effort `medium` |
+| draft | 30–70s | text provider, longest single call |
 | qc | <10ms | deterministic |
 | revise | 25–60s | only when the gate fails |
-| image_prompt | 5–15s | Claude, effort `low` — **runs parallel to draft** |
-| image | 8–25s | **runs parallel to draft/revise** |
+| image_prompt | 5–15s | text provider, effort `low` — **runs parallel to draft** |
+| image | 8–25s, plus up to 47s if paced | **runs parallel to draft/revise**, so pacing is usually absorbed |
 | publish | 0.1–2s | disk, plus one HTTPS POST if gdrive is on |
 
 Because the branches overlap, the end-to-end figure is roughly
@@ -298,13 +326,15 @@ Explicitly required by the brief.
 | 1 | "Content piece" means a markdown article with front matter | Portable into any CMS; renders in GitHub, Docs and the UI | Add a sink; the pipeline does not change |
 | 2 | 500–800 words counts prose, with code fences and markdown syntax stripped | It is what a reader reads | One constant in `count_words` |
 | 3 | Factual accuracy is out of scope | No retrieval tool was specified, and a model writing from parametric memory cannot be trusted on specifics. The draft prompt forbids inventing named studies and quotes, and prefers ranges over false precision | Add a web-search tool between `outline` and `draft` |
-| 4 | Claude for text | The one key available; strongest prose of the options | Provider interface is one class |
+| 4 | Gemini Flash for text, Claude as a swappable alternative | The deliverable had to be reproducible by an evaluator at zero cost, and an Anthropic **API** key is prepaid and billed separately from a Claude subscription. Gemini AI Studio issues a free key with no card. `TEXT_PROVIDER=claude` switches backends with no other change | One env var; both providers implement the same two methods |
 | 5 | Gemini → Pollinations → card for images | Gemini free tier is clean and unwatermarked; Pollinations needs no key at all and keeps the quickstart honest; the card guarantees an asset | Reorder `IMAGE_PROVIDERS` |
 | 6 | Google sink via Apps Script, not the Drive API | A service account has no Drive quota of its own, so uploads to a consumer My Drive fail with `storageQuotaExceeded`; full OAuth needs a GCP project and a refresh token to keep alive. "Execute as me" sidesteps both | Swap in an OAuth adapter behind `Sink` |
 | 7 | One image per asset | The brief says "a relevant visual asset (image)" | The image stage would return a list |
 | 8 | Diversity is measured across all runs globally | Single-tenant assumption | Partition `recent_selections()` by tenant |
 | 9 | 5 minutes is wall-clock per asset, not per batch | Natural reading for an interactive trigger | `DEADLINE_SECONDS` is per run |
-| 10 | The hosted demo runs `inline` on Render free | No Redis and no persistent disk on that tier; artifacts live in `/tmp` and reset on restart | Queue mode is demonstrated locally; see RUNBOOK |
+| 10 | Free-tier rate limits, not model capability, are the binding constraint | Pollinations allows ~1 image/45s per IP and Gemini free-tier daily caps have been cut repeatedly during 2026. Measured: two back-to-back runs both degraded to the fallback card until pacing was added, then both produced real images (101.1s and 93.1s) | Paid keys remove the pacing floor; set the interval to 0 |
+| 11 | Model ids are treated as volatile, not fixed | `gemini-2.5-flash` was deprecated in Oct 2026. A hardcoded id is a scheduled outage, so the provider resolves the configured id against ListModels and falls forward to the newest available Flash | `scripts/gemini_doctor.py` reports the truth for any key |
+| 12 | The hosted demo runs `inline` on Render free | No Redis and no persistent disk on that tier; artifacts live in `/tmp` and reset on restart | Queue mode is demonstrated locally; see RUNBOOK |
 
 ---
 
@@ -318,8 +348,8 @@ Explicitly required by the brief.
 | Multiple content styles/formats | `diversity/taxonomy.py` — 6 styles | `test_diversity.py` |
 | Content **and visual** diversity across executions | `diversity/engine.py` | `test_diversity.py` (10 tests) |
 | End-to-end within 5 minutes | `Deadline`, the `asyncio.gather` fork | timings in every `run.json` |
-| Error handling and retry | `providers/retry.py`, chain fallback | `test_resilience.py` (6 tests) |
-| Modular, maintainable, scalable | stage modules, `Sink`/provider protocols, dual run mode | 37 tests |
+| Error handling and retry | `providers/retry.py`, `providers/throttle.py`, chain fallback | `test_resilience.py` (7), `test_throttle.py` (7) |
+| Modular, maintainable, scalable | stage modules, `Sink`/text/image provider protocols, dual run mode | 45 tests |
 | Assumptions documented | §9 above | — |
 | Large-scale efficiency | §7 above | — |
 

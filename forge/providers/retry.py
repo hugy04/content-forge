@@ -29,6 +29,18 @@ class CircuitOpen(ProviderError):
     """The breaker is open; the call was not attempted."""
 
 
+class RateLimited(ProviderError):
+    """The provider refused because of a rate limit and told us how long to wait.
+
+    Distinct from a generic ProviderError because the correct response is to
+    pace future calls (see forge.providers.throttle), not to retry immediately.
+    """
+
+    def __init__(self, message: str, retry_after: float = 0.0):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 @dataclass
 class _Circuit:
     failures: int = 0

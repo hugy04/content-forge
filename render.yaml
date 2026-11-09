@@ -17,10 +17,12 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.13.4"
-      - key: ANTHROPIC_API_KEY
-        sync: false          # set in the Render dashboard, never in git
+      - key: TEXT_PROVIDER
+        value: gemini
       - key: GEMINI_API_KEY
-        sync: false
+        sync: false          # set in the Render dashboard, never in git
+      - key: ANTHROPIC_API_KEY
+        sync: false          # only needed if TEXT_PROVIDER is switched to claude
       - key: RUN_MODE
         value: inline
       - key: IMAGE_PROVIDERS

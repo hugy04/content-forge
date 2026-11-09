@@ -169,7 +169,6 @@ async def get_run(run_id: str):
 
 @app.get("/v1/runs")
 async def list_runs(limit: int = 20):
-    import sqlite3
     from forge.store.db import _connect
     with _connect(get_settings().db_path) as conn:
         rows = conn.execute(

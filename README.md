@@ -15,12 +15,12 @@ Built for the Case 2 assignment: an AI-powered content generation workflow.
 
 | | |
 |---|---|
-| **Text** | Claude (`claude-opus-5-5`), three structured-output calls |
+| **Text** | Pluggable: Gemini Flash (default, free tier) or Claude — three structured-output calls |
 | **Images** | Gemini → Pollinations → locally-rendered card (ordered fallback) |
 | **Variety** | 115,200 combinations across 6 dimensions, with cooldown + recency weighting |
 | **Quality** | 9 deterministic checks, bounded self-repair loop |
 | **Runs as** | FastAPI inline (zero infra) or Celery + Redis (scale) |
-| **Tests** | 37, all offline — no API key needed |
+| **Tests** | 45, all offline — no API key needed |
 
 ---
 
@@ -39,12 +39,23 @@ Open <http://localhost:8000>, type a topic, press Generate.
 ### With real providers
 
 ```bash
-cp .env.example .env     # then add ANTHROPIC_API_KEY (and optionally GEMINI_API_KEY)
+cp .env.example .env     # then add GEMINI_API_KEY
+.venv/bin/python scripts/gemini_doctor.py   # confirms the key and the model ids
 .venv/bin/uvicorn forge.api.app:app
 ```
 
-`ANTHROPIC_API_KEY` is the only required secret. Without `GEMINI_API_KEY` the
-image chain falls through to Pollinations, which needs no key at all.
+**`GEMINI_API_KEY` is the only required secret**, and it is free — no card, no
+billing account: <https://aistudio.google.com/apikey>. One key serves both the
+text and the image stage.
+
+Run `scripts/gemini_doctor.py` first. Google retires Flash model ids on roughly
+a quarterly cadence, and the doctor prints the ids your key can actually call
+rather than leaving you to discover a 404 mid-run.
+
+To run on Claude instead — better prose, metered cost — set `TEXT_PROVIDER=claude`
+and `ANTHROPIC_API_KEY`. Nothing else changes; that swap is the whole point of
+keeping the text layer behind an interface. Note that an Anthropic **API** key
+needs prepaid credits and is billed separately from a Claude Pro subscription.
 
 ### Command line
 
@@ -118,7 +129,10 @@ Everything is env-overridable; see `.env.example` for the full list.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | required unless `FAKE_PROVIDERS=1` |
+| `TEXT_PROVIDER` | `gemini` | or `claude`; selects the text backend |
+| `GEMINI_API_KEY` | — | required unless `FAKE_PROVIDERS=1`; free tier |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | auto-resolves if the id has been retired |
+| `ANTHROPIC_API_KEY` | — | only when `TEXT_PROVIDER=claude` |
 | `IMAGE_PROVIDERS` | `gemini,pollinations,card` | ordered fallback chain |
 | `TARGET_WORDS_MIN` / `_MAX` | `500` / `800` | the enforced contract |
 | `MAX_REVISIONS` | `2` | bound on the repair loop |
@@ -127,7 +141,8 @@ Everything is env-overridable; see `.env.example` for the full list.
 | `RUN_MODE` | `inline` | or `queue` for Celery + Redis |
 | `SINKS` | `local` | add `gdrive` for Docs + Sheets |
 | `FAKE_PROVIDERS` | `0` | fixtures, no network |
-| `OUTLINE_MODEL` / `DRAFT_MODEL` / `PROMPT_MODEL` | `claude-opus-5-5` | per-stage, so cost can be routed |
+| `OUTLINE_MODEL` / `DRAFT_MODEL` / `PROMPT_MODEL` | provider default | per-stage, so cost can be routed |
+| `POLLINATIONS_MIN_INTERVAL_SECONDS` | `47` | per-IP pacing floor for the free image tier |
 
 ---
 
@@ -155,7 +170,8 @@ forge/
     runner.py            orchestration, the parallel fork
     stages/              one module per stage
   providers/
-    text/claude.py       Anthropic, with usage and cost accounting
+    text/gemini.py       default backend: model discovery, schema translation
+    text/claude.py       the metered alternative, same interface
     image/               gemini · pollinations · cloudflare · openai · card
     retry.py             tenacity policies + circuit breaker
   sinks/                 local (always) · gdrive (Apps Script)

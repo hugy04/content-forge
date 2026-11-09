@@ -46,8 +46,36 @@ Edit `.env`:
 
 | Key | Where to get it | Required? |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | <https://platform.claude.com> → API keys | **yes** |
-| `GEMINI_API_KEY` | <https://aistudio.google.com/apikey> → Create API key (free, no card) | no — improves images |
+| `GEMINI_API_KEY` | <https://aistudio.google.com/apikey> → Create API key — free, no card, no billing account | **yes** |
+| `ANTHROPIC_API_KEY` | <https://platform.claude.com> → API keys | only if `TEXT_PROVIDER=claude` |
+
+One free Gemini key drives both the text stage and the image stage. An
+Anthropic API key is **not** included in a Claude Pro/Max subscription — the
+API meter is prepaid and separate — so the default path deliberately avoids it.
+
+Then confirm the key and the model ids before your first real run:
+
+```bash
+.venv/bin/python scripts/gemini_doctor.py
+```
+
+It lists every model the key can call, resolves the text model, runs a
+structured-output smoke test and prints the exact lines to paste into `.env`.
+Run it whenever a model id starts 404ing: Google retires Flash ids roughly
+quarterly (`gemini-2.5-flash` was deprecated in October 2026), and free-tier
+daily quotas have been cut repeatedly, so neither is safe to assume.
+
+### Free-tier quotas are the real constraint
+
+| Provider | Observed free limit | How the pipeline copes |
+|---|---|---|
+| Gemini text | 5–15 req/min; daily cap varies by model and has been cut as low as ~20/day | three calls per run; `GET /v1/stats` tracks spend against it, and a 429 is retried with backoff |
+| Gemini image | shares the same project quota | first in the image chain; falls through on failure |
+| Pollinations | ~1 image / 45s per IP, watermarked | paced by `POLLINATIONS_MIN_INTERVAL_SECONDS`, and the server's own `Retry after Ns` hint overrides it |
+| Card fallback | none — local | always last; guarantees every run ships a visual |
+
+If a daily cap is exhausted mid-demo, `FAKE_PROVIDERS=1` reproduces the full
+pipeline offline, and the already-generated `samples/` are unaffected.
 
 Then:
 
@@ -106,7 +134,7 @@ curl -s localhost:8000/v1/batch -H 'content-type: application/json' \
 ```
 
 Scale out by starting more workers against the same Redis — the pipeline holds
-no process-local state. Keep total concurrency under your Anthropic rate limit;
+no process-local state. Keep total concurrency under your provider's rate limit;
 `worker_prefetch_multiplier=1` is set so long tasks do not hoard the queue.
 
 ---
@@ -158,8 +186,8 @@ laptop being awake.
 1. Push the repo to GitHub.
 2. <https://dashboard.render.com> → **New** → **Blueprint** → pick the repo.
    `render.yaml` is detected automatically.
-3. When prompted, set the two secret env vars: `ANTHROPIC_API_KEY`,
-   `GEMINI_API_KEY`.
+3. When prompted, set the secret env vars: `GEMINI_API_KEY`,
+   `ANTHROPIC_API_KEY` (only if you switch `TEXT_PROVIDER` to `claude`).
 4. Deploy. The service comes up at `https://content-forge.onrender.com`.
 
 **Keep it warm.** Free services spin down after 15 minutes idle and take about a
@@ -188,9 +216,12 @@ docker run -p 8000:8000 --env-file .env -v "$PWD/data:/data" content-forge
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `ANTHROPIC_API_KEY is not set` | no `.env`, or the placeholder is still there | add the key, or `FAKE_PROVIDERS=1` |
+| `GEMINI_API_KEY is not set` | no `.env`, or the placeholder is still there | add the free key, or `FAKE_PROVIDERS=1` |
+| `gemini 404 ... model not found` | Google retired that model id | run `scripts/gemini_doctor.py`; the provider also self-resolves to the newest Flash id |
+| `gemini 429` on every call | free-tier daily quota exhausted | wait for the midnight-Pacific reset, use a second project, or `TEXT_PROVIDER=claude` |
 | Image is always the fallback card | no `GEMINI_API_KEY` and Pollinations unreachable | add the key; check `.image.attempts` in the run record for the per-provider reason |
-| `pollinations returned HTTP 402` | `nologo`/`safe` are tier-gated params | already removed from the request; if it recurs the anonymous tier is rate-limiting — the chain will fall through |
+| `pollinations rate limit (402)` | anonymous tier allows ~1 image / 45s per IP | expected under load; the limiter paces the next call and the chain falls through meanwhile |
+| Batch runs all show `skipped: paced` | several runs contending for one image slot | lower `--concurrency`, or raise `DEADLINE_SECONDS` so a run can afford the wait |
 | Runs always come back `partial` | the gate failed, or the image is a card | `GET /v1/runs/{id}` → `qc.checks` names the failing check |
 | Same style twice in a row | `DIVERSITY_COOLDOWN=0`, or an explicit `style` was passed | raise the cooldown; omit `style` to let the engine choose |
 | `202` instead of a result | `RUN_MODE=queue` | expected — poll the run, or set `RUN_MODE=inline` |

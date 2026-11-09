@@ -4,6 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,13 +16,28 @@ class Settings(BaseSettings):
     )
 
     # --- text generation ---
+    # `text_provider` selects the backend. Gemini is the default because its
+    # free tier makes a run cost nothing; `claude` is the same pipeline on a
+    # metered key and is the documented upgrade path for output quality.
+    text_provider: str = "gemini"
     anthropic_api_key: str = ""
-    outline_model: str = "claude-opus-5-5"
-    draft_model: str = "claude-opus-5-5"
-    prompt_model: str = "claude-opus-5-5"
+    gemini_api_key: str = ""
+
+    # Per-provider default model. Stage-level overrides below win when set.
+    gemini_model: str = "gemini-3.8-flash"
+    claude_model: str = "claude-opus-5-5"
+
+    # Leave blank to inherit the active provider's default model.
+    outline_model: str = ""
+    draft_model: str = ""
+    prompt_model: str = ""
     outline_effort: str = "medium"
     draft_effort: str = "medium"
     prompt_effort: str = "low"
+
+    # Optional paid-tier rates, for cost modelling on a free-tier provider.
+    price_input_per_mtok: float = -1.0
+    price_output_per_mtok: float = -1.0
 
     # --- content contract ---
     target_words_min: int = 500
@@ -35,11 +51,14 @@ class Settings(BaseSettings):
     image_height: int = 720
     image_timeout_seconds: int = 90
     pollinations_model: str = "flux"
+    # Known per-IP floors, in seconds. Pollinations' anonymous tier is ~1 image
+    # per 45s; a little headroom avoids tripping it on the boundary.
+    pollinations_min_interval_seconds: float = 47.0
+    gemini_image_min_interval_seconds: float = 0.0
     cloudflare_account_id: str = ""
     cloudflare_api_token: str = ""
     openai_api_key: str = ""
-    gemini_api_key: str = ""
-    gemini_image_model: str = "gemini-2.5-flash-image"
+    gemini_image_model: str = "gemini-3-pro-image-preview"
 
     # --- sinks ---
     sinks: str = "local"
@@ -59,6 +78,30 @@ class Settings(BaseSettings):
     # --- paths ---
     out_dir: Path = ROOT / "out"
     db_path: Path = ROOT / "data" / "forge.db"
+
+    @model_validator(mode="after")
+    def _fill_stage_models(self) -> "Settings":
+        default = {
+            "gemini": self.gemini_model,
+            "claude": self.claude_model,
+            "fake": "fixture",
+        }.get(self.text_provider, self.gemini_model)
+        for field_name in ("outline_model", "draft_model", "prompt_model"):
+            if not getattr(self, field_name):
+                object.__setattr__(self, field_name, default)
+        return self
+
+    def image_min_interval(self, provider: str) -> float:
+        return {
+            "pollinations": self.pollinations_min_interval_seconds,
+            "gemini": self.gemini_image_min_interval_seconds,
+        }.get(provider, 0.0)
+
+    @property
+    def price_override(self) -> tuple[float, float] | None:
+        if self.price_input_per_mtok < 0 or self.price_output_per_mtok < 0:
+            return None
+        return (self.price_input_per_mtok, self.price_output_per_mtok)
 
     @property
     def image_provider_chain(self) -> list[str]:
