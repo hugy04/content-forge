@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>content-forge</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --line:#252b35; --ink:#e8eaed; --dim:#9aa4b2;
+    --accent:#f0a830; --ok:#3ddc97; --warn:#ffb648; --bad:#ff6b6b; --radius:10px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f7f9; --panel:#fff; --line:#e3e6ea; --ink:#15171c; --dim:#5d6676; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:40px 16px 80px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  h1{font-size:24px;margin:0;letter-spacing:-.02em}
+  .tag{font-size:12px;color:var(--dim);border:1px solid var(--line);
+       padding:2px 8px;border-radius:99px}
+  .lede{color:var(--dim);margin:0 0 28px}
+  .panel{background:var(--panel);border:1px solid var(--line);
+         border-radius:var(--radius);padding:20px}
+  label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.07em;
+        color:var(--dim);margin-bottom:6px}
+  input,select{width:100%;padding:11px 12px;background:var(--bg);color:var(--ink);
+    border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .row{display:grid;grid-template-columns:1fr 220px;gap:14px;align-items:end}
+  @media (max-width:640px){.row{grid-template-columns:1fr}}
+  button{margin-top:16px;width:100%;padding:13px;background:var(--accent);color:#13151a;
+    border:0;border-radius:8px;font-size:15px;font-weight:650;cursor:pointer}
+  button:disabled{opacity:.55;cursor:progress}
+  .hint{font-size:12px;color:var(--dim);margin-top:10px}
+  #status{margin-top:22px;display:none}
+  .steps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .step{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);
+        color:var(--dim)}
+  .step.on{border-color:var(--accent);color:var(--accent)}
+  .step.done{border-color:var(--ok);color:var(--ok)}
+  .bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);
+         transition:width .4s ease}
+  #result{margin-top:26px;display:none}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+  .chip{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--bg);
+        border:1px solid var(--line);color:var(--dim)}
+  .chip b{color:var(--ink);font-weight:600}
+  .verdict{font-size:12px;padding:3px 10px;border-radius:99px;font-weight:650}
+  .v-completed{background:rgba(61,220,151,.14);color:var(--ok)}
+  .v-partial{background:rgba(255,182,72,.14);color:var(--warn)}
+  .v-failed{background:rgba(255,107,107,.14);color:var(--bad)}
+  img.hero{width:100%;border-radius:var(--radius);border:1px solid var(--line);display:block}
+  article{margin-top:22px}
+  article h2{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  article p{margin:0 0 14px}
+  .err{color:var(--bad)}
+  footer{margin-top:30px;font-size:12px;color:var(--dim)}
+  code{background:var(--bg);border:1px solid var(--line);padding:1px 5px;border-radius:4px;
+       font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>content-forge</h1>
+    <span class="tag">{{ mode }} mode</span>
+    <span class="tag">images: {{ image_chain }}</span>
+    {% if fake %}<span class="tag">fixtures</span>{% endif %}
+  </header>
+  <p class="lede">A topic goes in. A 500&ndash;800 word piece and a matching
+     AI-generated image come out, in a different format and visual style each time.</p>
+
+  <div class="panel">
+    <form id="f">
+      <div class="row">
+        <div>
+          <label for="topic">Topic</label>
+          <input id="topic" name="topic" required minlength="3"
+                 placeholder="e.g. How dealerships use AI to cut service-bay turnaround time">
+        </div>
+        <div>
+          <label for="style">Format</label>
+          <select id="style" name="style">
+            <option value="">Auto (rotate for diversity)</option>
+            {% for key, label in styles.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <button id="go" type="submit">Generate</button>
+      <p class="hint">Leave the format on Auto to let the diversity engine choose a
+         format, angle and art direction that recent runs have not used.</p>
+    </form>
+  </div>
+
+  <div id="status" class="panel">
+    <div class="steps" id="steps"></div>
+    <div class="bar"><i id="fill"></i></div>
+    <p class="hint" id="elapsed">starting&hellip;</p>
+  </div>
+
+  <div id="result"></div>
+
+  <footer>
+    <code>POST /v1/generate</code> &middot; <code>POST /v1/batch</code> &middot;
+    <code>POST /webhooks/topic</code> &middot; <a href="/docs">API docs</a> &middot;
+    <a href="/v1/stats">stats</a>
+  </footer>
+</div>
+
+<script>
+const STEPS = ["plan","outline","draft","qc","image","publish"];
+const form = document.getElementById("f");
+const statusBox = document.getElementById("status");
+const stepsBox = document.getElementById("steps");
+const fill = document.getElementById("fill");
+const elapsed = document.getElementById("elapsed");
+const result = document.getElementById("result");
+let timer, t0;
+
+function paintSteps(active){
+  stepsBox.innerHTML = STEPS.map((s,i)=>{
+    const cls = i < active ? "step done" : (i === active ? "step on" : "step");
+    return `<span class="${cls}">${s}</span>`;
+  }).join("");
+  fill.style.width = Math.min(96, (active/STEPS.length)*100) + "%";
+}
+
+function esc(s){ return (s||"").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+// Deliberately small markdown renderer: headings, bold, italic, paragraphs.
+function md(src){
+  return esc(src).split(/\n{2,}/).map(block=>{
+    const h = block.match(/^(#{2,3})\s+(.*)$/);
+    if (h) return `<h2>${h[2]}</h2>`;
+    let p = block.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")
+                 .replace(/(^|\W)\*(?!\s)(.+?)\*(?!\w)/g,"$1<i>$2</i>")
+                 .replace(/\n/g,"<br>");
+    return `<p>${p}</p>`;
+  }).join("");
+}
+
+form.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const go = document.getElementById("go");
+  go.disabled = true; go.textContent = "Generating…";
+  result.style.display = "none"; statusBox.style.display = "block";
+  let step = 0; t0 = Date.now(); paintSteps(0);
+  // Progress is advanced on a timer: the server returns one response at the
+  // end, so this communicates liveness rather than true stage state.
+  timer = setInterval(()=>{
+    const secs = ((Date.now()-t0)/1000);
+    elapsed.textContent = secs.toFixed(0) + "s elapsed · budget 300s";
+    if (secs > (step+1)*14 && step < STEPS.length-1){ step++; paintSteps(step); }
+  }, 500);
+
+  try {
+    const res = await fetch("/v1/generate", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        topic: document.getElementById("topic").value,
+        style: document.getElementById("style").value || null
+      })
+    });
+    const data = await res.json();
+    render(data.detail || data);
+  } catch(err){
+    result.innerHTML = `<div class="panel err">Request failed: ${esc(String(err))}</div>`;
+    result.style.display = "block";
+  } finally {
+    clearInterval(timer); paintSteps(STEPS.length);
+    statusBox.style.display = "none";
+    go.disabled = false; go.textContent = "Generate";
+  }
+});
+
+function render(d){
+  const sel = d.selection || {};
+  const img = d.image || {};
+  const art = (d.artifacts && d.artifacts.local) || {};
+  const secs = d.total_seconds != null ? d.total_seconds.toFixed(1)+"s" : "–";
+  const verdict = d.status || "unknown";
+  const body = (d.artifacts && d.artifacts.body_markdown) || d.body_markdown || "";
+
+  result.innerHTML = `
+    <div class="panel">
+      <span class="verdict v-${verdict}">${verdict}</span>
+      <h2 style="margin:12px 0 2px;font-size:22px">${esc(d.title||"")}</h2>
+      <div class="meta">
+        <span class="chip">format <b>${esc(sel.style||"–")}</b></span>
+        <span class="chip">angle <b>${esc(sel.angle||"–")}</b></span>
+        <span class="chip">audience <b>${esc(sel.audience||"–")}</b></span>
+        <span class="chip">art <b>${esc(sel.art_direction||"–")}</b></span>
+        <span class="chip">palette <b>${esc(sel.palette||"–")}</b></span>
+        <span class="chip">words <b>${d.word_count ?? "–"}</b></span>
+        <span class="chip">revisions <b>${d.revisions ?? 0}</b></span>
+        <span class="chip">image via <b>${esc(img.provider||"–")}</b></span>
+        <span class="chip">time <b>${secs}</b></span>
+      </div>
+      ${art.url_path ? `<img class="hero" src="${art.url_path}" alt="${esc(img.alt_text||"")}">` : ""}
+      ${d.warnings && d.warnings.length ? `<p class="hint">⚠ ${d.warnings.map(esc).join(" · ")}</p>` : ""}
+      <article id="body"></article>
+      <p class="hint">run <code>${esc(d.run_id||"")}</code> ·
+         <a href="/v1/runs/${esc(d.run_id||"")}">run record</a></p>
+    </div>`;
+  document.getElementById("body").innerHTML = md(body);
+  result.style.display = "block";
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# --- core ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+httpx==0.28.1
+tenacity==9.0.0
+jinja2==3.1.5
+python-multipart==0.0.20
+
+# --- providers ---
+anthropic==2.6.0
+pillow==11.1.0
+
+# --- queue mode ---
+celery[redis]==5.4.0
+redis==5.2.1
+
+# --- tests ---
+pytest==8.3.4
+pytest-asyncio==0.25.2
+respx==0.22.0

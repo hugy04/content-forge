@@ -1,0 +1,35 @@
+# Render blueprint. Free tier: no card, 750 instance-hours a month.
+#
+# The free plan has no persistent disk and no Redis, so the hosted instance runs
+# in `inline` mode and writes artifacts to /tmp - they survive until the next
+# restart, which is fine for a live demo and wrong for production. The design
+# doc states the production swap: Postgres for the run store, object storage for
+# the artifacts, and queue mode behind a managed Redis.
+services:
+  - type: web
+    name: content-forge
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn forge.api.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.4"
+      - key: ANTHROPIC_API_KEY
+        sync: false          # set in the Render dashboard, never in git
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RUN_MODE
+        value: inline
+      - key: IMAGE_PROVIDERS
+        value: gemini,pollinations,card
+      - key: SINKS
+        value: local
+      - key: OUT_DIR
+        value: /tmp/forge/out
+      - key: DB_PATH
+        value: /tmp/forge/forge.db
+      - key: DEADLINE_SECONDS
+        value: "300"
