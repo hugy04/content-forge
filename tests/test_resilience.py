@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from forge.config import Settings
+from tests.conftest import isolated_settings
 from forge.providers.image import registry as registry_module
 from forge.providers.image.base import ImageResult
 from forge.providers.image.registry import ImageRegistry
@@ -37,7 +37,8 @@ class AlwaysWorks:
 
 @pytest.fixture
 def settings():
-    return Settings(image_width=512, image_height=288, image_timeout_seconds=5)
+    return isolated_settings(image_width=512, image_height=288,
+                             image_timeout_seconds=5)
 
 
 async def test_chain_falls_through_a_dead_provider_to_a_live_one(settings, monkeypatch):
@@ -102,11 +103,10 @@ def test_circuit_breaker_half_opens_after_the_cooldown():
 @pytest.mark.asyncio
 async def test_a_paced_provider_is_skipped_so_the_chain_still_delivers(tmp_path):
     """A provider that cannot be called yet must not stall or fail the run."""
-    from forge.config import Settings
     from forge.providers.image.registry import ImageRegistry
     from forge.providers.throttle import LIMITER
 
-    settings = Settings(
+    settings = isolated_settings(
         image_providers="pollinations,card",
         pollinations_min_interval_seconds=600.0,
         out_dir=tmp_path, db_path=tmp_path / "t.db",

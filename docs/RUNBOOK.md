@@ -69,8 +69,9 @@ daily quotas have been cut repeatedly, so neither is safe to assume.
 
 | Provider | Observed free limit | How the pipeline copes |
 |---|---|---|
-| Gemini text | 5–15 req/min; daily cap varies by model and has been cut as low as ~20/day | three calls per run; `GET /v1/stats` tracks spend against it, and a 429 is retried with backoff |
-| Gemini image | shares the same project quota | first in the image chain; falls through on failure |
+| Gemini text | works, but the newest ids are capacity-limited: `gemini-3.8-flash` and `gemini-flash-latest` returned 503 "high demand" on a fresh free key, `gemini-3.6-flash` served normally | three calls per run; the provider retries, then **falls forward to the next model** |
+| Gemini image | **no free quota at all** — every image model returned 429 immediately | left out of the default chain; the code stays for paid keys |
+| Retired model ids | `gemini-2.5-flash`, `-flash-lite` and `-pro` all return 404 "no longer available to new users" | resolved against ListModels at startup |
 | Pollinations | ~1 image / 45s per IP, watermarked | paced by `POLLINATIONS_MIN_INTERVAL_SECONDS`, and the server's own `Retry after Ns` hint overrides it |
 | Card fallback | none — local | always last; guarantees every run ships a visual |
 

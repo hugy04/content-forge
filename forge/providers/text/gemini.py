@@ -39,13 +39,16 @@ API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 
 # Preference order used when the configured model is not available to this key.
 # Newest first; the first id the API actually offers wins.
+# Ordered by what a free key can actually reach, measured 9 Nov 2026 - not by
+# version number. The newest ids are the most capacity-constrained, so they sit
+# below the one that answers reliably. Re-check with scripts/gemini_doctor.py.
 MODEL_PREFERENCE: tuple[str, ...] = (
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
     "gemini-3.8-flash",
     "gemini-3.7-flash",
-    "gemini-3.6-flash",
-    "gemini-3-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-2.5-flash",
     "gemini-flash-latest",
 )
 
@@ -95,6 +98,7 @@ class GeminiTextProvider:
         )
         self.usage = usage or Usage()
         self._resolved: dict[str, str] = {}
+        self._available: list[str] = []
         self._lock = asyncio.Lock()
         self._no_thinking: set[str] = set()
 
@@ -124,6 +128,7 @@ class GeminiTextProvider:
                 return self._resolved[requested]
             try:
                 available = await self.list_models()
+                self._available = available
             except Exception as exc:  # discovery is best-effort
                 log.warning("gemini ListModels failed (%s); using %s as-is", exc, requested)
                 self._resolved[requested] = requested
@@ -170,10 +175,48 @@ class GeminiTextProvider:
             f"{API_ROOT}/models/{model}:generateContent", json=body
         )
 
+    def _fallback_models(self, primary: str) -> list[str]:
+        """Models to try, in order, if `primary` is unavailable.
+
+        Measured on a free key (Nov 2026): `gemini-3.8-flash` and
+        `gemini-flash-latest` both answer 503 "experiencing high demand" while
+        `gemini-3.6-flash` serves normally. Capacity pressure on the newest id
+        is not a transient blip that backoff fixes - it is a reason to use a
+        different model. Retry handles the blip; this handles the blip that
+        lasts.
+        """
+        pool = self._available or list(MODEL_PREFERENCE)
+        ordered = [m for m in MODEL_PREFERENCE if m in pool and m != primary]
+        return [primary, *ordered][:3]
+
     async def _call(self, *, stage: str, model: str, effort: str, system: str,
                     user: str, max_tokens: int,
                     schema: dict[str, Any] | None) -> str:
-        resolved = await self._resolve(model or self._default_model)
+        primary = await self._resolve(model or self._default_model)
+        candidates = self._fallback_models(primary)
+        last: ProviderError | None = None
+
+        for index, candidate in enumerate(candidates):
+            try:
+                return await self._attempt(
+                    stage=stage, model=candidate, effort=effort, system=system,
+                    user=user, max_tokens=max_tokens, schema=schema,
+                )
+            except ProviderError as exc:
+                last = exc
+                if index + 1 < len(candidates) and _is_capacity_failure(exc):
+                    log.warning(
+                        "gemini %s unavailable (%s); falling forward to %s",
+                        candidate, exc, candidates[index + 1],
+                    )
+                    continue
+                raise
+        raise last or ProviderError("gemini: no candidate model succeeded")
+
+    async def _attempt(self, *, stage: str, model: str, effort: str, system: str,
+                       user: str, max_tokens: int,
+                       schema: dict[str, Any] | None) -> str:
+        resolved = model
         key = f"gemini:{resolved}"
 
         async for attempt in retrying(attempts=3):
@@ -262,6 +305,15 @@ class GeminiTextProvider:
                             user: str, max_tokens: int = 8000) -> str:
         return await self._call(stage=stage, model=model, effort=effort, system=system,
                                 user=user, max_tokens=max_tokens, schema=None)
+
+
+CAPACITY_MARKERS = ("503", "429", "high demand", "overloaded", "quota", "404")
+
+
+def _is_capacity_failure(exc: ProviderError) -> bool:
+    """Is this a 'use a different model' failure rather than a real error?"""
+    text = str(exc).lower()
+    return any(marker in text for marker in CAPACITY_MARKERS)
 
 
 def _extract(payload: dict[str, Any]) -> tuple[str, str]:

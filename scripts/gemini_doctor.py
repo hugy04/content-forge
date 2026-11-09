@@ -54,6 +54,27 @@ async def main() -> int:
         chosen = await provider._resolve(settings.gemini_model)
         print(f"\nResolved text model: {chosen}")
 
+        # Listing an image model proves nothing about being able to call it.
+        image_ok = None
+        if image_ids:
+            probe = next((m for m in image_ids if "3" in m), image_ids[0])
+            print(f"Image probe ({probe}) ...", end=" ", flush=True)
+            async with httpx.AsyncClient(
+                    timeout=60, headers={"x-goog-api-key": key}) as ic:
+                ir = await ic.post(
+                    f"{API_ROOT}/models/{probe}:generateContent",
+                    json={"contents": [{"parts": [{"text": "a red circle"}]}],
+                          "generationConfig": {"responseModalities": ["IMAGE"]}})
+            image_ok = ir.status_code == 200
+            if image_ok:
+                print("OK - Gemini can serve the image stage.")
+            elif ir.status_code == 429:
+                print("429 quota - image generation is NOT in this key's free "
+                      "tier.\n  Leave Gemini out of IMAGE_PROVIDERS; the chain "
+                      "will use Pollinations and the card fallback.")
+            else:
+                print(f"HTTP {ir.status_code} - treat Gemini images as unavailable.")
+
         print("Smoke test ...", end=" ", flush=True)
         out = await provider.complete_json(
             stage="doctor", model=chosen, effort="low",
@@ -69,10 +90,13 @@ async def main() -> int:
         print(f"OK -> {out}")
         print(f"Tokens: {provider.usage.as_dict()}")
         print("\nSet these in .env:")
-        print(f"  TEXT_PROVIDER=gemini")
+        print("  TEXT_PROVIDER=gemini")
         print(f"  GEMINI_MODEL={chosen}")
-        if image_ids:
-            print(f"  GEMINI_IMAGE_MODEL={image_ids[0]}")
+        if image_ok:
+            print(f"  GEMINI_IMAGE_MODEL={probe}")
+            print("  IMAGE_PROVIDERS=gemini,pollinations,card")
+        else:
+            print("  IMAGE_PROVIDERS=pollinations,card")
         return 0
     finally:
         await provider.aclose()
