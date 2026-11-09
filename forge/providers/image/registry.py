@@ -13,7 +13,13 @@ from typing import Any
 from forge.config import Settings
 from forge.providers.image.base import ImageResult
 from forge.providers.image.card import CardProvider
-from forge.providers.retry import BREAKER, ProviderError, RateLimited, retrying
+from forge.providers.retry import (
+    BREAKER,
+    PermanentProviderError,
+    ProviderError,
+    RateLimited,
+    retrying,
+)
 from forge.providers.throttle import LIMITER, TooLongToWait
 
 log = logging.getLogger("forge.image")
@@ -116,6 +122,10 @@ class ImageRegistry:
                         width=self.settings.image_width, height=self.settings.image_height,
                         seed=seed, timeout=self.settings.image_timeout_seconds,
                     )
+                except PermanentProviderError:
+                    # Not the provider's fault and not transient: do not let it
+                    # open the breaker for everyone else.
+                    raise
                 except RateLimited as exc:
                     # The server knows its own limit better than our config does.
                     LIMITER.penalise(key, exc.retry_after or interval)

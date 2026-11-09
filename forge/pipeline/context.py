@@ -27,10 +27,25 @@ class Deadline:
     """
     budget_seconds: float
     started: float = field(default_factory=time.monotonic)
+    finished: float | None = None
+
+    def stop(self) -> float:
+        """Freeze the clock at the end of the run.
+
+        `elapsed` is live by design, because the stages need the *current*
+        remaining budget. That makes it the wrong thing to read afterwards: a
+        batch runner that printed `elapsed` once every run had finished
+        reported 437s for a run that actually took 67s. Freezing it here keeps
+        one number that means "how long this run took".
+        """
+        if self.finished is None:
+            self.finished = time.monotonic()
+        return self.finished - self.started
 
     @property
     def elapsed(self) -> float:
-        return time.monotonic() - self.started
+        end = self.finished if self.finished is not None else time.monotonic()
+        return end - self.started
 
     @property
     def remaining(self) -> float:

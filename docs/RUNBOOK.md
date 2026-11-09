@@ -69,7 +69,7 @@ daily quotas have been cut repeatedly, so neither is safe to assume.
 
 | Provider | Observed free limit | How the pipeline copes |
 |---|---|---|
-| Gemini text | works, but the newest ids are capacity-limited: `gemini-3.8-flash` and `gemini-flash-latest` returned 503 "high demand" on a fresh free key, `gemini-3.6-flash` served normally | three calls per run; the provider retries, then **falls forward to the next model** |
+| Gemini text | quotas are enforced **per model**, so a spent model is not a spent key. Newest ids are also the most capacity-limited: `gemini-3.8-flash` and `gemini-flash-latest` returned 503 "high demand" on a fresh free key, `gemini-3.6-flash` served normally | three calls per run; the provider retries, then **falls forward to the next model** |
 | Gemini image | **no free quota at all** — every image model returned 429 immediately | left out of the default chain; the code stays for paid keys |
 | Retired model ids | `gemini-2.5-flash`, `-flash-lite` and `-pro` all return 404 "no longer available to new users" | resolved against ListModels at startup |
 | Pollinations | ~1 image / 45s per IP, watermarked | paced by `POLLINATIONS_MIN_INTERVAL_SECONDS`, and the server's own `Retry after Ns` hint overrides it |
@@ -219,7 +219,9 @@ docker run -p 8000:8000 --env-file .env -v "$PWD/data:/data" content-forge
 |---|---|---|
 | `GEMINI_API_KEY is not set` | no `.env`, or the placeholder is still there | add the free key, or `FAKE_PROVIDERS=1` |
 | `gemini 404 ... model not found` | Google retired that model id | run `scripts/gemini_doctor.py`; the provider also self-resolves to the newest Flash id |
-| `gemini 429` on every call | free-tier daily quota exhausted | wait for the midnight-Pacific reset, use a second project, or `TEXT_PROVIDER=claude` |
+| `gemini 429 ... per day limit` | that **model's** daily quota is spent — quotas are per model, not per project | nothing to do: the provider excludes it for the process and falls forward. To pick a different primary, set `GEMINI_MODEL` to one `gemini_doctor.py` reports as OK |
+| `gemini 429 ... per minute` | calling too fast | set `GEMINI_MIN_INTERVAL_SECONDS` (4 is comfortable) and run batches at `--concurrency 1` |
+| `CircuitOpen: circuit open for gemini:<model>` | that model failed repeatedly | expected and handled — the run falls forward to a sibling model. Seeing the run *fail* on this means you are on a build before that fix |
 | Image is always the fallback card | no `GEMINI_API_KEY` and Pollinations unreachable | add the key; check `.image.attempts` in the run record for the per-provider reason |
 | `pollinations rate limit (402)` | anonymous tier allows ~1 image / 45s per IP | expected under load; the limiter paces the next call and the chain falls through meanwhile |
 | Batch runs all show `skipped: paced` | several runs contending for one image slot | lower `--concurrency`, or raise `DEADLINE_SECONDS` so a run can afford the wait |

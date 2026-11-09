@@ -83,3 +83,41 @@ async def test_stats_aggregate_across_runs(deps):
 
 def test_word_count_ignores_markdown_syntax():
     assert count_words("## Heading\n\n**bold** _italic_ word") == 4
+
+
+async def test_each_run_in_a_batch_reports_only_its_own_token_usage(deps):
+    """The provider ledger is shared; the run ledger must not be.
+
+    Regression: ctx.usage was aliased to the provider's process-wide Usage, so
+    the fourth run in a batch reported all four runs' tokens as its own, and
+    every per-asset cost figure downstream was wrong.
+    """
+    totals = []
+    for topic in ("First batch topic", "Second batch topic", "Third batch topic"):
+        ctx = await generate(topic, deps=deps)
+        totals.append(ctx.usage.input_tokens)
+
+    assert totals[0] > 0
+    assert all(t == totals[0] for t in totals), (
+        f"per-run usage is accumulating across the batch: {totals}")
+    assert deps.text.usage.input_tokens == sum(totals), (
+        "the provider ledger should still hold the process-wide total")
+
+
+async def test_the_recorded_duration_stops_when_the_run_does(deps):
+    """Regression: a live clock read after the fact reports the wrong number.
+
+    `Deadline.elapsed` must stay live during the run (stages budget against
+    it), but once the run is over it has to freeze - otherwise a batch runner
+    that prints durations at the end reports the whole batch's wall clock for
+    every run in it.
+    """
+    import asyncio
+
+    ctx = await generate("A topic for the clock test", deps=deps)
+    first = ctx.deadline.elapsed
+    recorded = ctx.summary()["total_seconds"]
+    await asyncio.sleep(0.2)
+
+    assert ctx.deadline.elapsed == first, "the clock kept running after the run"
+    assert abs(recorded - first) < 0.01

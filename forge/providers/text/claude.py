@@ -36,7 +36,8 @@ class ClaudeTextProvider:
 
     async def _call(self, *, stage: str, model: str, effort: str, system: str,
                     user: str, max_tokens: int,
-                    schema: dict[str, Any] | None) -> str:
+                    schema: dict[str, Any] | None,
+                    usage: Usage | None = None) -> str:
         output_config: dict[str, Any] = {"effort": effort}
         if schema is not None:
             output_config["format"] = {"type": "json_schema", "schema": schema}
@@ -72,10 +73,10 @@ class ClaudeTextProvider:
                     )
 
                 BREAKER.record_success(f"claude:{model}")
-                self.usage.add(
-                    model, stage,
-                    response.usage.input_tokens, response.usage.output_tokens,
-                )
+                counts = (response.usage.input_tokens, response.usage.output_tokens)
+                self.usage.add(model, stage, *counts)
+                if usage is not None and usage is not self.usage:
+                    usage.add(model, stage, *counts)
                 text = "".join(b.text for b in response.content if b.type == "text")
                 if not text.strip():
                     raise ProviderError(f"claude returned no text at stage {stage}")
@@ -84,9 +85,11 @@ class ClaudeTextProvider:
 
     async def complete_json(self, *, stage: str, model: str, effort: str, system: str,
                             user: str, schema: dict[str, Any],
-                            max_tokens: int = 8000) -> dict[str, Any]:
+                            max_tokens: int = 8000,
+                            usage: Usage | None = None) -> dict[str, Any]:
         raw = await self._call(stage=stage, model=model, effort=effort, system=system,
-                               user=user, max_tokens=max_tokens, schema=schema)
+                               user=user, max_tokens=max_tokens, schema=schema,
+                               usage=usage)
         try:
             return json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -95,6 +98,8 @@ class ClaudeTextProvider:
             ) from exc
 
     async def complete_text(self, *, stage: str, model: str, effort: str, system: str,
-                            user: str, max_tokens: int = 8000) -> str:
+                            user: str, max_tokens: int = 8000,
+                            usage: Usage | None = None) -> str:
         return await self._call(stage=stage, model=model, effort=effort, system=system,
-                                user=user, max_tokens=max_tokens, schema=None)
+                                user=user, max_tokens=max_tokens, schema=None,
+                                usage=usage)

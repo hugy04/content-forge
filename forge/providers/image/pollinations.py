@@ -14,11 +14,21 @@ import urllib.parse
 import httpx
 
 from forge.providers.image.base import ImageResult, to_png, validate_png_or_jpeg
-from forge.providers.retry import ProviderError, RateLimited
+from forge.providers.retry import (
+    PermanentProviderError,
+    ProviderError,
+    RateLimited,
+)
 
 log = logging.getLogger("forge.image.pollinations")
 
 ENDPOINT = "https://image.pollinations.ai/prompt/{prompt}"
+
+# The API validates `seed` as a signed 32-bit integer. Run seeds are derived
+# from a SHA-256 digest, which overflows that range about half the time, so the
+# seed is folded rather than truncated - truncating would bias the low bits and
+# quietly reduce visual variety.
+MAX_SEED = 2_147_483_647
 
 
 class PollinationsProvider:
@@ -36,7 +46,8 @@ class PollinationsProvider:
         # fail far more often than it succeeds. The free tier stamps a small
         # attribution watermark; that is the provider's branding and is left intact.
         params = {
-            "width": width, "height": height, "seed": seed, "model": self.model,
+            "width": width, "height": height, "seed": seed % MAX_SEED,
+            "model": self.model,
         }
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
@@ -52,6 +63,13 @@ class PollinationsProvider:
                 f"pollinations rate limit ({response.status_code}): "
                 f"{response.text[:160]!r}",
                 retry_after=_retry_after(response),
+            )
+        if 400 <= response.status_code < 500:
+            # Deterministic: our request is wrong. Fail fast and leave the
+            # breaker alone so concurrent runs keep their shot at the provider.
+            raise PermanentProviderError(
+                f"pollinations rejected the request ({response.status_code}): "
+                f"{response.text[:200]!r}"
             )
         if response.status_code != 200:
             raise ProviderError(

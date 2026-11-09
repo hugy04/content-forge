@@ -196,6 +196,9 @@ before the fallback is ever tried.
 | Malformed JSON | `json.loads` | retried; structured outputs make it near-impossible |
 | Image provider down | exception / non-200 / bad content-type | retry, then next provider in the chain |
 | Published rate limit (402/429 with a cool-off) | `RateLimited` carrying `retry_after` | **paced, not retried** — see below |
+| Per-day quota exhausted | `_is_daily_cap()` on the 429 body | model excluded for the process; fall forward to a sibling model |
+| Breaker already open for a model | `CircuitOpen` | treated as a capacity failure, so the chain tries another model rather than failing |
+| Deterministic 4xx (bad parameter) | `PermanentProviderError` | fail fast, **and do not count it against the shared breaker** |
 | Model id retired (404) | ListModels resolution | falls forward to the newest available model, once per process |
 | Image provider returns an HTML error page with HTTP 200 | Pillow decode check | treated as a failure, not written to disk |
 | Every image provider down | chain exhausted | locally rendered card; run marked `partial` |
@@ -204,6 +207,29 @@ before the fallback is ever tried.
 | Budget exhausted | `Deadline.require()` | run fails cleanly with elapsed timings recorded |
 | Duplicate request | idempotency key | returns the existing asset instead of paying twice |
 | Worker killed mid-run | `task_acks_late` | Celery redelivers; idempotency key prevents a duplicate |
+
+### Free-tier quotas are per model, which makes model choice a resilience lever
+
+Measured on a live free key during this build, in the order the failures
+appeared:
+
+| What happened | Why the obvious response is wrong |
+|---|---|
+| `gemini-3.8-flash` returned 503 "high demand" consistently | Backoff waits out a blip; this was not a blip. The fix is a different model. |
+| `gemini-3.6-flash` then returned 429 **"requests per day limit"** | Retrying cannot recover a cap that resets at midnight Pacific, and the breaker's 60s half-open keeps re-probing a model that is dead for the day. |
+| Three sibling models kept serving normally throughout | Quota is enforced **per model**, not per project — so the pool of models is also a pool of quota. |
+
+So the text provider keeps three pieces of state: resolved ids (from
+ListModels), an exhausted set (models that reported a *daily* cap, excluded for
+the process), and the preference order. `_is_daily_cap()` separates "too fast"
+from "done for today", because only the first is worth a retry.
+
+The breaker needed a correction for the same reason. `CircuitOpen` is now
+classified as a capacity failure, so an open breaker triggers fall-forward to
+another model. Without that, the mechanism that exists to protect the latency
+budget became the thing that failed the run — observed live: one model's
+breaker opened and the next three runs died on `CircuitOpen` while two other
+models were answering normally.
 
 ### Rate limits are paced, not retried
 

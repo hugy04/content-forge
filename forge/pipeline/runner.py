@@ -57,7 +57,9 @@ def build_text_provider(settings: Settings, usage: Usage) -> Any:
     if provider == "gemini":
         from forge.providers.text.gemini import GeminiTextProvider
         return GeminiTextProvider(
-            settings.gemini_api_key, usage, default_model=settings.gemini_model
+            settings.gemini_api_key, usage,
+            default_model=settings.gemini_model,
+            min_interval=settings.gemini_min_interval_seconds,
         )
     if provider in {"claude", "anthropic"}:
         from forge.providers.text.claude import ClaudeTextProvider
@@ -102,7 +104,9 @@ async def run_pipeline(ctx: RunContext, deps: Deps | None = None) -> RunContext:
     deps = deps or build_deps()
     settings = deps.settings
     ctx.deadline = ctx.deadline or Deadline(budget_seconds=settings.deadline_seconds)
-    ctx.usage = deps.text.usage
+    # ctx.usage stays the run's own ledger; deps.text.usage is the
+    # process-wide total exposed by /v1/stats.
+    ctx.usage.rate_override = deps.settings.price_override
 
     _persist(ctx, deps, status="running")
 
@@ -137,6 +141,9 @@ async def run_pipeline(ctx: RunContext, deps: Deps | None = None) -> RunContext:
         ctx.errors.append(f"{type(exc).__name__}: {exc}")
         log.exception("run %s failed", ctx.run_id)
 
+    # Freeze the clock before anything reads it, so the recorded duration is
+    # the run's own and not "time until someone printed it".
+    ctx.deadline.stop()
     _persist(ctx, deps, status=ctx.status)
     return ctx
 

@@ -17,4 +17,5 @@ async def run(ctx, deps) -> None:
         user=image_prompt_user(ctx.topic, ctx.selection, ctx.outline),
         schema=IMAGE_PROMPT_SCHEMA,
         max_tokens=1200,
+        usage=ctx.usage,
     )

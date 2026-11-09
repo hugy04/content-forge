@@ -17,4 +17,5 @@ async def run(ctx, deps) -> None:
         ),
         schema=DRAFT_SCHEMA,
         max_tokens=8000,
+        usage=ctx.usage,
     )

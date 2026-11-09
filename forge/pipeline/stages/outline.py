@@ -15,4 +15,5 @@ async def run(ctx, deps) -> None:
         user=outline_user(ctx.topic, ctx.selection, target),
         schema=OUTLINE_SCHEMA,
         max_tokens=4000,
+        usage=ctx.usage,
     )

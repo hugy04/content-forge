@@ -49,6 +49,7 @@ async def run(ctx, deps) -> None:
             ),
             schema=DRAFT_SCHEMA,
             max_tokens=8000,
+            usage=ctx.usage,
         )
         # Keep the revision only if it is actually an improvement on the gate.
         candidate = validate(

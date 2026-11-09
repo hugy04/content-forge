@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # Per-provider default model. Stage-level overrides below win when set.
     gemini_model: str = "gemini-3.8-flash"
     claude_model: str = "claude-opus-5-5"
+    # Seconds between text calls to one model. Free Gemini keys allow only
+    # a handful of requests per minute, and spacing beats discovering the
+    # cap with a 429.
+    gemini_min_interval_seconds: float = 0.0
 
     # Leave blank to inherit the active provider's default model.
     outline_model: str = ""

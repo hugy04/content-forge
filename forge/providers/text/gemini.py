@@ -30,7 +30,13 @@ from typing import Any
 
 import httpx
 
-from forge.providers.retry import BREAKER, ProviderError, retrying
+from forge.providers.retry import (
+    BREAKER,
+    CircuitOpen,
+    ProviderError,
+    retrying,
+)
+from forge.providers.throttle import LIMITER, TooLongToWait
 from forge.providers.text.usage import Usage
 
 log = logging.getLogger("forge.text.gemini")
@@ -84,7 +90,7 @@ class GeminiTextProvider:
 
     def __init__(self, api_key: str, usage: Usage | None = None,
                  default_model: str = "gemini-3.8-flash",
-                 timeout: float = 120.0):
+                 timeout: float = 120.0, min_interval: float = 0.0):
         if not api_key:
             raise ValueError(
                 "GEMINI_API_KEY is not set. Get a free key at "
@@ -99,6 +105,14 @@ class GeminiTextProvider:
         self.usage = usage or Usage()
         self._resolved: dict[str, str] = {}
         self._available: list[str] = []
+        # Free-tier request-per-minute caps are low; spacing calls is cheaper
+        # than discovering the cap with a 429 and a backoff.
+        self._min_interval = min_interval
+        # Models whose *daily* quota is spent. The breaker half-opens after 60s,
+        # which is right for a transient fault and wrong for a cap that resets
+        # at midnight Pacific - without this the pipeline re-probes a dead model
+        # on every run for the rest of the day.
+        self._exhausted: set[str] = set()
         self._lock = asyncio.Lock()
         self._no_thinking: set[str] = set()
 
@@ -186,12 +200,17 @@ class GeminiTextProvider:
         lasts.
         """
         pool = self._available or list(MODEL_PREFERENCE)
-        ordered = [m for m in MODEL_PREFERENCE if m in pool and m != primary]
-        return [primary, *ordered][:3]
+        ordered = [m for m in MODEL_PREFERENCE
+                   if m in pool and m != primary and m not in self._exhausted]
+        candidates = [primary, *ordered]
+        if primary in self._exhausted and ordered:
+            candidates = ordered
+        return candidates[:3]
 
     async def _call(self, *, stage: str, model: str, effort: str, system: str,
                     user: str, max_tokens: int,
-                    schema: dict[str, Any] | None) -> str:
+                    schema: dict[str, Any] | None,
+                    usage: Usage | None = None) -> str:
         primary = await self._resolve(model or self._default_model)
         candidates = self._fallback_models(primary)
         last: ProviderError | None = None
@@ -200,7 +219,7 @@ class GeminiTextProvider:
             try:
                 return await self._attempt(
                     stage=stage, model=candidate, effort=effort, system=system,
-                    user=user, max_tokens=max_tokens, schema=schema,
+                    user=user, max_tokens=max_tokens, schema=schema, usage=usage,
                 )
             except ProviderError as exc:
                 last = exc
@@ -215,13 +234,15 @@ class GeminiTextProvider:
 
     async def _attempt(self, *, stage: str, model: str, effort: str, system: str,
                        user: str, max_tokens: int,
-                       schema: dict[str, Any] | None) -> str:
+                       schema: dict[str, Any] | None,
+                       usage: Usage | None = None) -> str:
         resolved = model
         key = f"gemini:{resolved}"
 
         async for attempt in retrying(attempts=3):
             with attempt:
                 BREAKER.check(key)
+                await LIMITER.acquire(f"text:{resolved}", self._min_interval, 90.0)
                 body = self._body(
                     system=system, user=user, effort=effort, max_tokens=max_tokens,
                     schema=schema, with_thinking=resolved not in self._no_thinking,
@@ -245,10 +266,17 @@ class GeminiTextProvider:
                     response = await self._post(resolved, body)
 
                 if response.status_code in (429, 500, 502, 503, 504):
+                    detail = _message(response)
+                    if response.status_code == 429 and _is_daily_cap(response):
+                        # Nothing recovers this before midnight Pacific.
+                        self._exhausted.add(resolved)
+                        log.warning(
+                            "gemini %s has spent its daily quota; excluding it "
+                            "for the rest of this process", resolved,
+                        )
                     BREAKER.record_failure(key)
                     raise ProviderError(
-                        f"gemini {response.status_code} at stage {stage}: "
-                        f"{_message(response)}"
+                        f"gemini {response.status_code} at stage {stage}: {detail}"
                     )
                 if response.status_code >= 400:
                     # 4xx other than rate limiting is our bug; do not retry it.
@@ -275,20 +303,27 @@ class GeminiTextProvider:
 
                 BREAKER.record_success(key)
                 meta = payload.get("usageMetadata", {})
-                self.usage.add(
-                    resolved, stage,
+                counts = (
                     int(meta.get("promptTokenCount", 0)),
                     int(meta.get("candidatesTokenCount", 0)),
                     int(meta.get("thoughtsTokenCount", 0)),
                 )
+                # Two ledgers on purpose: `self.usage` is the process total
+                # behind /v1/stats, `usage` is this run's own, so a batch does
+                # not report every run's cost as the running total.
+                self.usage.add(resolved, stage, *counts)
+                if usage is not None and usage is not self.usage:
+                    usage.add(resolved, stage, *counts)
                 return text
         raise ProviderError("unreachable")
 
     async def complete_json(self, *, stage: str, model: str, effort: str, system: str,
                             user: str, schema: dict[str, Any],
-                            max_tokens: int = 8000) -> dict[str, Any]:
+                            max_tokens: int = 8000,
+                            usage: Usage | None = None) -> dict[str, Any]:
         raw = await self._call(stage=stage, model=model, effort=effort, system=system,
-                               user=user, max_tokens=max_tokens, schema=schema)
+                               user=user, max_tokens=max_tokens, schema=schema,
+                               usage=usage)
         try:
             return json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -302,16 +337,27 @@ class GeminiTextProvider:
                 ) from exc
 
     async def complete_text(self, *, stage: str, model: str, effort: str, system: str,
-                            user: str, max_tokens: int = 8000) -> str:
+                            user: str, max_tokens: int = 8000,
+                            usage: Usage | None = None) -> str:
         return await self._call(stage=stage, model=model, effort=effort, system=system,
-                                user=user, max_tokens=max_tokens, schema=None)
+                                user=user, max_tokens=max_tokens, schema=None,
+                                usage=usage)
 
 
-CAPACITY_MARKERS = ("503", "429", "high demand", "overloaded", "quota", "404")
+CAPACITY_MARKERS = ("503", "429", "high demand", "overloaded", "quota", "404",
+                    "rate limit", "resource_exhausted")
 
 
 def _is_capacity_failure(exc: ProviderError) -> bool:
-    """Is this a 'use a different model' failure rather than a real error?"""
+    """Is this a 'use a different model' failure rather than a real error?
+
+    CircuitOpen counts. An open breaker means *this model* has failed
+    repeatedly, which is precisely when another model should be tried - without
+    this, the breaker that exists to protect the latency budget instead becomes
+    the thing that fails the run.
+    """
+    if isinstance(exc, (CircuitOpen, TooLongToWait)):
+        return True
     text = str(exc).lower()
     return any(marker in text for marker in CAPACITY_MARKERS)
 
@@ -333,6 +379,21 @@ def _finish_reason(payload: dict[str, Any]) -> str:
         block = (payload.get("promptFeedback") or {}).get("blockReason")
         return block or "NO_CANDIDATES"
     return candidates[0].get("finishReason", "STOP")
+
+
+def _is_daily_cap(response: httpx.Response) -> bool:
+    """Distinguish 'too fast' from 'done for today'.
+
+    A per-minute 429 is worth retrying in a few seconds; a per-day 429 is not
+    worth retrying at all, and the two are only separable from the quota
+    violation detail Google attaches to the error.
+    """
+    try:
+        body = response.json()
+    except Exception:
+        return "per day" in response.text.lower()
+    blob = str(body).lower()
+    return "per day" in blob or "perday" in blob
 
 
 def _message(response: httpx.Response) -> str:

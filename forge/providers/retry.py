@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from tenacity import (
     AsyncRetrying,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential_jitter,
 )
@@ -27,6 +27,18 @@ class ProviderError(RuntimeError):
 
 class CircuitOpen(ProviderError):
     """The breaker is open; the call was not attempted."""
+
+
+class PermanentProviderError(ProviderError):
+    """A deterministic client-side failure: retrying will fail identically.
+
+    Worth its own type for two reasons. Retrying a malformed request spends the
+    run's latency budget to reach the same 400. And because the circuit breaker
+    is process-wide, counting a deterministic failure against it lets one bad
+    request deny the provider to every *other* concurrent run - which is how a
+    single out-of-range seed once pushed three of four batch runs onto the
+    fallback card.
+    """
 
 
 class RateLimited(ProviderError):
@@ -94,6 +106,9 @@ def retrying(attempts: int = 3, initial: float = 1.0, maximum: float = 12.0) -> 
     return AsyncRetrying(
         stop=stop_after_attempt(attempts),
         wait=wait_exponential_jitter(initial=initial, max=maximum),
-        retry=retry_if_exception_type(ProviderError),
+        retry=retry_if_exception(
+            lambda exc: isinstance(exc, ProviderError)
+            and not isinstance(exc, PermanentProviderError)
+        ),
         reraise=True,
     )

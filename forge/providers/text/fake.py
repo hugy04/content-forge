@@ -20,9 +20,12 @@ class FakeTextProvider:
 
     async def complete_json(self, *, stage: str, model: str, effort: str, system: str,
                             user: str, schema: dict[str, Any],
-                            max_tokens: int = 8000) -> dict[str, Any]:
+                            max_tokens: int = 8000,
+                            usage: Usage | None = None) -> dict[str, Any]:
         from forge.providers.text import fixtures
         self.usage.add(model, stage, 900, 700)
+        if usage is not None and usage is not self.usage:
+            usage.add(model, stage, 900, 700)
         # The revise prompt carries no Topic: line, so remember the last one.
         topic = _topic_from(user)
         if topic == "the subject":
@@ -39,8 +42,11 @@ class FakeTextProvider:
         return {}
 
     async def complete_text(self, *, stage: str, model: str, effort: str, system: str,
-                            user: str, max_tokens: int = 8000) -> str:
+                            user: str, max_tokens: int = 8000,
+                            usage: Usage | None = None) -> str:
         self.usage.add(model, stage, 500, 300)
+        if usage is not None and usage is not self.usage:
+            usage.add(model, stage, 500, 300)
         return "fixture text"
 
 

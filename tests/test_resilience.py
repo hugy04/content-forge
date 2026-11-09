@@ -123,3 +123,57 @@ async def test_a_paced_provider_is_skipped_so_the_chain_still_delivers(tmp_path)
         assert paced["skipped"] == "paced"
     finally:
         LIMITER.release("image:pollinations")
+
+
+class PermanentlyBroken:
+    """Returns a deterministic client error, as an out-of-range param would."""
+    name = "broken"
+    generated = True
+
+    def __init__(self):
+        self.calls = 0
+
+    async def generate(self, **kwargs):
+        from forge.providers.retry import PermanentProviderError
+        self.calls += 1
+        raise PermanentProviderError("broken rejected the request (400)")
+
+
+@pytest.mark.asyncio
+async def test_a_deterministic_400_is_not_retried(settings, monkeypatch):
+    """Retrying a malformed request just spends the budget to fail identically."""
+    broken = PermanentlyBroken()
+    monkeypatch.setattr(registry_module, "build_provider",
+                        lambda name, s, **kw: broken if name == "broken"
+                        else registry_module.CardProvider(title="t"))
+    result, attempts = await ImageRegistry(settings).generate(
+        prompt="p", negative="n", seed=1, title="t", style_label="s",
+        palette="ink_amber", chain=["broken", "card"])
+    assert broken.calls == 1          # not 3
+    assert result.provider == "card"
+
+
+@pytest.mark.asyncio
+async def test_a_deterministic_400_does_not_open_the_breaker_for_other_runs(
+        settings, monkeypatch):
+    """One bad request must not deny the provider to every concurrent run."""
+    from forge.providers.retry import BREAKER
+
+    broken = PermanentlyBroken()
+    monkeypatch.setattr(registry_module, "build_provider",
+                        lambda name, s, **kw: broken if name == "broken"
+                        else registry_module.CardProvider(title="t"))
+    for _ in range(4):
+        await ImageRegistry(settings).generate(
+            prompt="p", negative="n", seed=1, title="t", style_label="s",
+            palette="ink_amber", chain=["broken", "card"])
+    assert BREAKER.snapshot().get("image:broken", {"open": False})["open"] is False
+
+
+def test_pollinations_folds_oversized_seeds_into_the_api_range():
+    """SHA-256 derived seeds overflow the API's int32 limit about half the time."""
+    from forge.providers.image.pollinations import MAX_SEED
+
+    assert MAX_SEED == 2_147_483_647
+    for raw in (0, 1, MAX_SEED - 1, MAX_SEED, 4_183_850_846, 2**32 - 1):
+        assert 0 <= raw % MAX_SEED <= MAX_SEED
