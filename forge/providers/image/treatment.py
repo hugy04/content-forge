@@ -139,12 +139,21 @@ def _paper_border(image: Image.Image, paper: str, inset: int = 26) -> Image.Imag
 def _edges(image: Image.Image, ink: str, paper: str) -> Image.Image:
     """Line art: CONTOUR already returns dark strokes on white, which survives
     a soft threshold. FIND_EDGES needs a hard threshold and erases thin work."""
-    grey = ImageOps.grayscale(image).filter(ImageFilter.MedianFilter(3))
-    grey = ImageOps.autocontrast(grey, cutoff=2)
+    grey = ImageOps.grayscale(image)
+    # Denoise hard before edge detection. CONTOUR amplifies sensor noise into
+    # a field of speckle that reads as dirt rather than draughtsmanship, and no
+    # amount of thresholding afterwards separates specks from strokes.
+    grey = grey.filter(ImageFilter.MedianFilter(5))
+    grey = grey.filter(ImageFilter.GaussianBlur(1.4))
+    grey = ImageOps.autocontrast(grey, cutoff=3)
+
     lines = grey.filter(ImageFilter.CONTOUR)
     lines = ImageOps.autocontrast(lines, cutoff=1)
-    lines = lines.filter(ImageFilter.MinFilter(3))      # thicken strokes
-    lines = lines.point(lambda v: 0 if v < 190 else 255)
+    lines = lines.point(lambda v: 0 if v < 165 else 255)
+    # Median on the thresholded image erases isolated pixels while leaving
+    # connected strokes intact; MinFilter then restores stroke weight.
+    lines = lines.filter(ImageFilter.MedianFilter(3))
+    lines = lines.filter(ImageFilter.MinFilter(3))
     return ImageOps.colorize(lines, black=_rgb(ink), white=_rgb(paper))
 
 
@@ -188,28 +197,29 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             out = _letterbox(out)
 
         elif art_direction == "risograph":
-            out = _flatten(base, 4, [dark, accent, paper])
-            out = _offset_channels(out, 6)
-            out = _grain(out, seed, 22)
+            out = _flatten(base, 6, [dark, accent, paper])
+            out = Image.blend(out, _tritone(base, dark, accent, paper), 0.35)
+            out = _offset_channels(out, 3)
+            out = _grain(out, seed, 10)
 
         elif art_direction == "line_illustration":
             out = _edges(base, dark, paper)
 
         elif art_direction == "flat_vector":
-            out = _flatten(base, 4, [dark, accent, paper])
+            out = _flatten(base, 5, [dark, accent, paper])
 
         elif art_direction == "isometric_3d":
             out = _flatten(base, 6, [dark, accent, paper])
             out = ImageEnhance.Brightness(out).enhance(1.04)
 
         elif art_direction == "collage":
-            out = _flatten(base, 5, [dark, accent, paper])
-            out = _offset_channels(out, 8)
-            out = _paper_border(out, paper, inset=30)
-            out = _grain(out, seed, 12)
+            out = _flatten(base, 7, [dark, accent, paper])
+            out = _offset_channels(out, 3)
+            out = _paper_border(out, paper, inset=26)
+            out = _grain(out, seed, 6)
 
         elif art_direction == "data_abstract":
-            out = _flatten(base, 3, [dark, accent, paper])
+            out = _flatten(base, 5, [dark, accent, paper])
             out = _grid(out, accent)
 
         else:

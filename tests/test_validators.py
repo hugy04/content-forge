@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from forge.pipeline.validators import validate
+import pytest
+
+from forge.pipeline.validators import gate_distance, validate
 
 GOOD_TITLE = "Why Service Bays Are the Real Constraint"
 
@@ -65,3 +67,46 @@ def test_code_fences_do_not_count_toward_the_word_budget():
     body = "## A\n\n" + ("word " * 300) + "\n\n" + fence + "\n## B\n\n" + ("word " * 300)
     result = validate(piece(600, body=body), target_min=500, target_max=800)
     assert result["word_count"] < 700
+
+
+# -- gate distance -----------------------------------------------------------
+
+def _report(errors, words):
+    return {"errors": errors, "word_count": words, "passed": not errors}
+
+
+def test_a_shorter_shortfall_scores_better_even_though_both_still_fail():
+    """Regression: the repair loop compared error *counts*, so a revision that
+    moved a draft from 424 to 490 words looked like no progress and was thrown
+    away - taking the remaining revision budget with it."""
+    worse = gate_distance(_report(["word_count"], 424), 500, 800)
+    better = gate_distance(_report(["word_count"], 490), 500, 800)
+    assert better < worse
+
+
+def test_passing_scores_zero():
+    assert gate_distance(_report([], 650), 500, 800) == 0.0
+
+
+def test_each_failed_check_costs_at_least_one():
+    one = gate_distance(_report(["has_sections"], 650), 500, 800)
+    two = gate_distance(_report(["has_sections", "no_h1_in_body"], 650), 500, 800)
+    assert one == 1.0
+    assert two == 2.0
+
+
+def test_overshooting_is_penalised_like_undershooting():
+    over = gate_distance(_report(["word_count"], 950), 500, 800)
+    under = gate_distance(_report(["word_count"], 350), 500, 800)
+    assert over == pytest.approx(under, abs=0.01)
+
+
+def test_a_draft_inside_the_band_adds_no_word_penalty():
+    assert gate_distance(_report(["has_sections"], 650), 500, 800) == 1.0
+
+
+def test_fewer_errors_always_beats_a_marginally_better_word_count():
+    """Count still dominates: structure matters more than a few words."""
+    two_errors_close = gate_distance(_report(["word_count", "has_sections"], 495), 500, 800)
+    one_error_far = gate_distance(_report(["word_count"], 300), 500, 800)
+    assert one_error_far < two_errors_close

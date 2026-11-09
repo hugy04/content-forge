@@ -164,6 +164,8 @@ class RunContext:
                 "height": getattr(self.image, "height", None),
                 "prompt": self.image_prompt.get("prompt"),
                 "alt_text": self.image_prompt.get("alt_text"),
+                "treatment": getattr(self.image, "meta", {}).get("treatment"),
+                "meta": getattr(self.image, "meta", {}),
                 "attempts": self.image_attempts,
             },
             "timings_seconds": self.timings,

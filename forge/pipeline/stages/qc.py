@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import logging
 
+from forge.pipeline.markdown import repair_draft
 from forge.pipeline.prompts import DRAFT_SCHEMA, REVISE_SYSTEM, revise_user
-from forge.pipeline.validators import validate
+from forge.pipeline.validators import gate_distance, validate
 
 log = logging.getLogger("forge.qc")
 
@@ -51,20 +52,31 @@ async def run(ctx, deps) -> None:
             max_tokens=8000,
             usage=ctx.usage,
         )
-        # Keep the revision only if it is actually an improvement on the gate.
+        revised = repair_draft(revised, ctx)
+        # Keep the revision only if it moves the draft closer to passing.
         candidate = validate(
             revised,
             target_min=settings.target_words_min,
             target_max=settings.target_words_max,
             outline=ctx.outline,
         )
-        if candidate["passed"] or len(candidate["errors"]) < len(ctx.qc["errors"]):
+        before = gate_distance(ctx.qc, settings.target_words_min,
+                               settings.target_words_max)
+        after = gate_distance(candidate, settings.target_words_min,
+                              settings.target_words_max)
+
+        if candidate["passed"] or after < before:
             ctx.draft, ctx.qc = revised, candidate
-        else:
-            ctx.warnings.append(
-                f"revision {ctx.revisions} did not improve the gate; kept the previous draft"
-            )
-            break
+            log.info("run %s revision %d improved the gate: %.2f -> %.2f",
+                     ctx.run_id, ctx.revisions, before, after)
+            # Improvement earns another pass, up to the configured bound.
+            continue
+
+        ctx.warnings.append(
+            f"revision {ctx.revisions} did not improve the gate "
+            f"({before:.2f} -> {after:.2f}); kept the previous draft"
+        )
+        break
 
     if not ctx.qc["passed"]:
         ctx.warnings.append(f"quality gate not met: {ctx.qc['errors']}")

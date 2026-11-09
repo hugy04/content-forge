@@ -113,6 +113,28 @@ def validate(draft: dict[str, Any], *, target_min: int, target_max: int,
     }
 
 
+def gate_distance(report: dict[str, Any], target_min: int, target_max: int) -> float:
+    """How far a draft is from passing, as a single comparable number.
+
+    Counting failed checks is too coarse to steer a repair loop: a revision
+    that moves a draft from 424 words to 490 still fails `word_count`, so by
+    count it looks like no progress and the loop discards real improvement and
+    stops. Distance keeps the partial credit - each failed check costs 1.0, and
+    `word_count` additionally costs its shortfall measured in units of the
+    allowed band, so getting closer always scores better.
+    """
+    errors = set(report.get("errors") or [])
+    distance = float(len(errors))
+    if "word_count" in errors:
+        words = report.get("word_count", 0)
+        band = max(1, target_max - target_min)
+        if words < target_min:
+            distance += (target_min - words) / band
+        elif words > target_max:
+            distance += (words - target_max) / band
+    return distance
+
+
 def _repair(errors: list[dict[str, Any]], words: int, target_min: int,
             target_max: int, headings: list[str]) -> str | None:
     """Turn failed checks into one specific instruction for the revise call."""
