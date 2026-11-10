@@ -23,7 +23,7 @@ LABELS: dict[str, dict[str, tuple[str, str]]] = {
         "practitioner": ("Expert", "for people who already do this"),
         "future":       ("What's next", "where it is heading"),
         "risk":         ("Risks", "what can go wrong"),
-        "comparison":   ("Compare", "this versus the alternative"),
+        "comparison":   ("Alternatives", "weighs it against the usual options"),
         "data_led":     ("Numbers", "built on figures and measurements"),
         "historical":   ("History", "how it got here"),
     },
@@ -46,16 +46,17 @@ LABELS: dict[str, dict[str, tuple[str, str]]] = {
         "line_illustration":     ("Line drawing", "black outlines on plain paper"),
         "risograph":             ("Poster print", "two inks, slightly off-register"),
     },
-    # Each palette is four colours. The name is the two you notice.
+    # Every palette is four colours. Named after the mood rather than two of
+    # them, because "Blue & sand" reads as a choice between two colours.
     "palette": {
-        "cobalt_sand":    ("Blue & sand", "deep blue, sand, bone white, orange"),
-        "forest_clay":    ("Green & clay", "forest green, terracotta, cream, brass"),
-        "ink_amber":      ("Black & amber", "near-black, amber, grey, pale gold"),
-        "slate_mint":     ("Grey & mint", "slate grey, mint, chalk white, coral"),
-        "oxblood_stone":  ("Red & stone", "deep red, pale stone, charcoal, pink"),
-        "teal_copper":    ("Teal & copper", "teal, copper, off-white, soft greys"),
-        "monochrome_pop": ("Black & white", "greyscale with one bright blue"),
-        "dusk_violet":    ("Violet & navy", "violet, navy, warm grey, peach"),
+        "cobalt_sand":    ("Ocean", "deep blue, sand, bone white, orange"),
+        "forest_clay":    ("Forest", "forest green, terracotta, cream, brass"),
+        "ink_amber":      ("Ink", "near-black, amber, grey paper, pale gold"),
+        "slate_mint":     ("Arctic", "slate grey, mint, chalk white, coral"),
+        "oxblood_stone":  ("Clay", "deep red, pale stone, charcoal, dusty pink"),
+        "teal_copper":    ("Copper", "deep teal, copper, off-white, soft greys"),
+        "monochrome_pop": ("Mono", "black and white, with one bright blue"),
+        "dusk_violet":    ("Dusk", "violet, navy, warm grey, peach"),
     },
     # How close the picture is to its subject.
     "composition": {

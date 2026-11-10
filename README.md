@@ -1,7 +1,7 @@
 # content-forge
 
 **A topic string goes in. A 500–800 word piece and a matching AI-generated
-image come out — in a different format and visual style every time.**
+image come out - in a different format and visual style every time.**
 
 Built for the Case 2 assignment: an AI-powered content generation workflow.
 
@@ -15,12 +15,12 @@ Built for the Case 2 assignment: an AI-powered content generation workflow.
 
 | | |
 |---|---|
-| **Text** | Pluggable: Gemini Flash (default, free tier) or Claude — three structured-output calls |
+| **Text** | Pluggable: Gemini Flash (default, free tier) or Claude - three structured-output calls |
 | **Images** | Gemini → Pollinations → locally-rendered card (ordered fallback) |
 | **Variety** | 115,200 combinations across 6 dimensions, with cooldown + recency weighting |
 | **Quality** | 9 deterministic checks, bounded self-repair loop |
 | **Runs as** | FastAPI inline (zero infra) or Celery + Redis (scale) |
-| **Tests** | 128, all offline — no API key needed |
+| **Tests** | 128, all offline - no API key needed |
 
 ---
 
@@ -44,7 +44,7 @@ cp .env.example .env     # then add GEMINI_API_KEY
 .venv/bin/uvicorn forge.api.app:app
 ```
 
-**`GEMINI_API_KEY` is the only required secret**, and it is free — no card, no
+**`GEMINI_API_KEY` is the only required secret**, and it is free - no card, no
 billing account: <https://aistudio.google.com/apikey>. One key serves both the
 text and the image stage.
 
@@ -52,7 +52,7 @@ Run `scripts/gemini_doctor.py` first. Google retires Flash model ids on roughly
 a quarterly cadence, and the doctor prints the ids your key can actually call
 rather than leaving you to discover a 404 mid-run.
 
-To run on Claude instead — better prose, metered cost — set `TEXT_PROVIDER=claude`
+To run on Claude instead - better prose, metered cost - set `TEXT_PROVIDER=claude`
 and `ANTHROPIC_API_KEY`. Nothing else changes; that swap is the whole point of
 keeping the text layer behind an interface. Note that an Anthropic **API** key
 needs prepaid credits and is billed separately from a Claude Pro subscription.
@@ -77,7 +77,7 @@ needs prepaid credits and is billed separately from a Claude Pro subscription.
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /v1/generate` | Main entry. `{"topic": "...", "style": "opinion"}` — `style` optional |
+| `POST /v1/generate` | Main entry. `{"topic": "...", "style": "opinion"}` - `style` optional |
 | `POST /v1/batch` | `{"topics": [...], "concurrency": 3}`, isolated per topic |
 | `POST /webhooks/topic` | Permissive trigger: accepts `{topic}`, `{text}`, `{subject}` or bare text |
 | `GET /v1/runs/{run_id}` | Full run record: selection, timings, tokens, cost, QC verdict |
@@ -94,7 +94,7 @@ curl -s localhost:8000/v1/generate \
 ```
 
 Every run writes `out/<date>_<slug>_<id>/` containing `content.md` (with YAML
-front matter), `image.png`, and `run.json` — the complete record including
+front matter), `image.png`, and `run.json` - the complete record including
 per-stage timings and token cost.
 
 ---
@@ -130,14 +130,14 @@ Everything is env-overridable; see `.env.example` for the full list.
 | Variable | Default | Notes |
 |---|---|---|
 | `TEXT_PROVIDER` | `gemini` | or `claude`; selects the text backend |
-| `GEMINI_API_KEY` | — | required unless `FAKE_PROVIDERS=1`; free tier |
+| `GEMINI_API_KEY` | - | required unless `FAKE_PROVIDERS=1`; free tier |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | auto-resolves if the id has been retired |
-| `ANTHROPIC_API_KEY` | — | only when `TEXT_PROVIDER=claude` |
+| `ANTHROPIC_API_KEY` | - | only when `TEXT_PROVIDER=claude` |
 | `TEXT_TIMEOUT_SECONDS` | `45` | per text call; a flash model slower than this is not coming back |
-| `BASIC_AUTH_USER` | — | set both to gate the whole surface; blank leaves it open |
-| `BASIC_AUTH_PASS` | — | `/healthz` stays open so uptime monitors need no credentials |
+| `BASIC_AUTH_USER` | - | set both to gate the whole surface; blank leaves it open |
+| `BASIC_AUTH_PASS` | - | `/healthz` stays open so uptime monitors need no credentials |
 | `IMAGE_PROVIDERS` | `gemini,pollinations,card` | ordered fallback chain |
-| `POLLINATIONS_TOKEN` | — | free at enter.pollinations.ai; only lifts the watermark and the per-IP floor on an account with a pollen balance — a key alone changes neither |
+| `POLLINATIONS_TOKEN` | - | free at enter.pollinations.ai; only lifts the watermark and the per-IP floor on an account with a pollen balance - a key alone changes neither |
 | `TARGET_WORDS_MIN` / `_MAX` | `500` / `800` | the enforced contract |
 | `MAX_REVISIONS` | `2` | bound on the repair loop |
 | `DEADLINE_SECONDS` | `300` | per-run wall-clock budget |

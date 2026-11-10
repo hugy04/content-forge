@@ -31,13 +31,20 @@
   .row{display:grid;grid-template-columns:1fr 220px;gap:14px;align-items:end}
   @media (max-width:640px){.row{grid-template-columns:1fr}}
   details#adv{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
-  details#adv summary{cursor:pointer;font-size:13px;color:var(--dim);
-    list-style:none;user-select:none}
+  details#adv summary{cursor:pointer;font-size:13px;color:var(--ink);
+    list-style:none;user-select:none;display:inline-flex;align-items:center;
+    gap:7px;padding:7px 13px;border:1px solid var(--line);border-radius:99px;
+    background:var(--bg);transition:border-color .15s,background .15s}
   details#adv summary::-webkit-details-marker{display:none}
-  details#adv summary::before{content:"\25B8 ";display:inline-block;
-    transition:transform .15s}
-  details#adv[open] summary::before{transform:rotate(90deg)}
-  details#adv summary:hover{color:var(--ink)}
+  details#adv summary:hover{border-color:var(--accent);color:var(--accent)}
+  details#adv summary .chev{display:inline-block;font-size:10px;
+    transition:transform .15s;color:var(--dim)}
+  details#adv[open] summary .chev{transform:rotate(90deg)}
+  details#adv[open] summary{border-color:var(--accent);color:var(--accent)}
+  details#adv[open] summary .chev{color:var(--accent)}
+  #reset{width:auto;margin:0;padding:0;background:none;border:0;color:var(--dim);
+    font:inherit;font-size:12px;text-decoration:underline;cursor:pointer}
+  #reset:hover{color:var(--accent)}
   .guide{display:block;font-size:11px;color:var(--dim);margin-top:5px;
          min-height:14px;line-height:1.3}
   .dims{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
@@ -101,7 +108,6 @@
      what they are looking at, so an editorial image does not have to be
      decoded. */
   .hero-fig{margin:0}
-  .hero-fig figcaption{font-size:13px;color:var(--dim);margin-top:8px;line-height:1.5}
   article{margin-top:22px}
   article h2{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
   article p{margin:0 0 14px}
@@ -129,7 +135,6 @@
     .verdict,.chip{border:1px solid #ccc;color:#444;background:#fff}
     .run-meta{border-top:1px solid #ccc}
     img.hero{border:1px solid #ddd;break-inside:avoid}
-    .hero-fig figcaption{color:#555}
     article h2{break-after:avoid}
     a{color:#111;text-decoration:none}
   }
@@ -165,7 +170,7 @@
         </div>
       </div>
       <details id="adv">
-        <summary>More options <span style="opacity:.7">&mdash; angle, audience, and the image</span></summary>
+        <summary><span class="chev">&#9656;</span> Customise</summary>
         <div class="dims">
           {% for key, label, options, auto_hint in dimensions %}
           <div>
@@ -183,6 +188,7 @@
         <p class="hint">These six settings are what the piece is built from.
            Leave any of them on Auto and the system picks one that recent runs
            have not used.</p>
+        <p class="hint"><button type="button" id="reset">Reset all to Auto</button></p>
       </details>
       <button id="go" type="submit">Generate</button>
       <p class="hint">Leave everything on Auto to let the diversity engine choose a
@@ -276,6 +282,11 @@ function wireGuides(){
   });
 }
 wireGuides();
+document.getElementById("reset").addEventListener("click", ()=>{
+  document.querySelectorAll("select[data-auto]").forEach(s=>{
+    s.value = ""; s.dispatchEvent(new Event("change"));
+  });
+});
 
 const DIMENSIONS = ["style","angle","audience","art_direction",
                     "palette","composition"];
@@ -319,7 +330,7 @@ form.addEventListener("submit", async (e)=>{
     result.innerHTML = dropped
       ? `<div class="panel err">The connection dropped after ${elapsedSecs.toFixed(0)}s.
          This instance sleeps when idle and takes about a minute to wake, which is
-         longer than the browser will wait. It is awake now &mdash; press Generate again
+         longer than the browser will wait. It is awake now - press Generate again
          and it should run in well under a minute.</div>`
       : `<div class="panel err">Request failed: ${esc(String(err))}</div>`;
     result.style.display = "block";
@@ -344,7 +355,6 @@ function render(d){
       <h2 style="margin:12px 0 2px;font-size:22px">${esc(d.title||"")}</h2>
       ${art.url_path ? `<figure class="hero-fig">
           <img class="hero" src="${art.url_path}" alt="${esc(img.alt_text||"")}">
-          ${img.alt_text ? `<figcaption>${esc(img.alt_text)}</figcaption>` : ""}
         </figure>` : ""}
       ${d.warnings && d.warnings.length ? `<p class="hint">⚠ ${d.warnings.map(esc).join(" · ")}</p>` : ""}
       <article id="body"></article>

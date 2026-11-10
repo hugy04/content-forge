@@ -80,6 +80,10 @@ def validate(draft: dict[str, Any], *, target_min: int, target_max: int,
     ))
 
     found_tells = [t for t in AI_TELLS if t in lowered]
+    # Counted alongside the stock phrases rather than as its own gate: one em
+    # dash is a stylistic slip, a page of them is the giveaway.
+    if body.count("\u2014") > 2:
+        found_tells.append(f"em dashes (x{body.count(chr(0x2014))})")
     checks.append(_check(
         "ai_tells", len(found_tells) <= AI_TELL_LIMIT, "warn",
         f"boilerplate phrases: {found_tells}" if found_tells else "none found",

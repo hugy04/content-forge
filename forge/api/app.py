@@ -239,7 +239,7 @@ async def index(request: Request):
                  "a look recent runs have not used"),
                 ("palette", "Colours", PALETTES,
                  "colours recent runs have not used"),
-                ("composition", "How close", COMPOSITIONS,
+                ("composition", "Image distance", COMPOSITIONS,
                  "a distance that suits the subject"),
             )
         ],

@@ -36,14 +36,14 @@ done
 
 # The evaluator gets a map of the five deliverables at the top level.
 cat > "$dest/SUBMISSION.md" <<'INNER'
-# Submission — Case 2: AI-Powered Content Generation Workflow
+# Submission - Case 2: AI-Powered Content Generation Workflow
 
 | Deliverable | Where |
 |---|---|
 | 1. Workflow design, explanation, assumptions | `docs/DESIGN.md` |
 | 2. Source code | `forge/` (pipeline, providers, sinks, API, worker), `tests/` |
 | 3. Setup and execution instructions | `README.md` quickstart, then `docs/RUNBOOK.md` |
-| 4. Sample outputs (4 topics) | `samples/` — see `samples/README.md` |
+| 4. Sample outputs (4 topics) | `samples/` - see `samples/README.md` |
 | 5. Demo video | linked in the covering mail; script in `docs/DEMO_SCRIPT.md` |
 
 **Runs with no API key.** `FAKE_PROVIDERS=1` exercises the whole pipeline with

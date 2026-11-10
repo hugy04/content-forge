@@ -110,3 +110,23 @@ def test_fewer_errors_always_beats_a_marginally_better_word_count():
     two_errors_close = gate_distance(_report(["word_count", "has_sections"], 495), 500, 800)
     one_error_far = gate_distance(_report(["word_count"], 300), 500, 800)
     assert one_error_far < two_errors_close
+
+
+
+def _tells(result):
+    return next(c for c in result["checks"] if c["name"] == "ai_tells")["detail"]
+
+
+def test_a_page_of_em_dashes_is_counted_as_a_tell():
+    """The house style forbids them, so the gate has to be able to see them."""
+    body = "## First\n\n" + "A sentence \u2014 with an interruption. " * 160
+    result = validate(piece(640, body=body), target_min=500, target_max=800)
+    assert "em dashes" in _tells(result)
+
+
+def test_one_em_dash_is_not_worth_reporting():
+    """A single one is a stylistic slip; a page of them is the giveaway."""
+    body = ("## First\n\nA sentence \u2014 with one interruption.\n\n"
+            "## Second\n\n" + "plain prose carries the rest. " * 120)
+    result = validate(piece(640, body=body), target_min=500, target_max=800)
+    assert "em dashes" not in _tells(result)

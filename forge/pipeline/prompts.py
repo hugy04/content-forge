@@ -141,6 +141,9 @@ cannot be specific, cut the claim.
 - No filler openers ("In today's rapidly evolving landscape"), no throat-clearing \
 ("It's important to note that"), no summary paragraph that merely repeats what \
 you just said.
+- Never use an em dash. Use a comma, a colon, a full stop or brackets, whichever \
+the sentence actually needs. An em dash is usually a sentence that has not \
+decided what its own structure is.
 - Do not invent statistics, studies or quotes attributed to real named people or \
 organisations. Where a figure is illustrative, phrase it as a range or an order of \
 magnitude rather than a false precision.

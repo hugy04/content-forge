@@ -38,7 +38,7 @@ def test_the_form_offers_every_dimension_the_api_accepts(page):
 @pytest.mark.parametrize("label", [
     "Disagree",        # angle: contrarian
     "Close-up",        # composition: close_detail
-    "Black & white",   # palette: monochrome_pop
+    "Mono",            # palette: monochrome_pop
     "Poster print",    # art_direction: risograph
     "Beginners",       # audience: newcomers
 ])
