@@ -211,6 +211,14 @@ deliberately stays open, so an uptime monitor needs no credentials and a gated
 deployment does not look permanently down. Leave both blank and the app is open,
 which is what local development wants.
 
+**When the budget runs out.** The five-minute limit is enforced, not hoped for:
+a stage that cannot finish in the time left refuses to start rather than
+returning something half-written. What it does *not* do any more is throw the
+run away. Whatever completed - the outline, the image, a draft - is published and
+the run is marked `partial` with a warning naming the cause. On a free tier the
+cause is almost always an upstream model queueing under load, which is a fact
+about the tier rather than a defect in the pipeline, and the run says so.
+
 **Known limits of the free tier**, stated plainly:
 
 | Limit | Consequence | Production answer |

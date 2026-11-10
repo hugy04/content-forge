@@ -159,3 +159,41 @@ def test_an_unknown_text_provider_reports_unconfigured_rather_than_crashing():
     bogus = isolated_settings(text_provider="gemeni", gemini_api_key="g-key")
     assert bogus.text_provider_key == ""
     assert bogus.text_provider_configured is False
+
+
+async def test_a_deadline_blown_late_keeps_what_was_already_produced(deps, monkeypatch):
+    """Regression: a hosted run produced an image and threw it away.
+
+    The budget ran out at the draft stage, the whole run was marked `failed`,
+    and publish never ran - so a generated image, a finished outline and three
+    minutes of the caller's waiting were discarded. On a free tier the usual
+    reason the clock runs out is an upstream model queueing, which is not a
+    reason to bin the work that did complete.
+    """
+    from forge.pipeline.context import DeadlineExceeded
+    from forge.pipeline.stages import qc as qc_stage
+
+    async def blow_the_budget(ctx, deps):
+        raise DeadlineExceeded("qc needs ~20s but only 3s of the 300s budget remains")
+
+    monkeypatch.setattr(qc_stage, "run", blow_the_budget)
+    ctx = await generate("A topic whose clock runs out late", deps=deps)
+
+    assert ctx.status == "partial", "work that completed must not be thrown away"
+    assert ctx.draft, "the draft produced before the deadline is still attached"
+    assert any("deadline exceeded" in e for e in ctx.errors)
+    assert any("five-minute budget ran out" in w for w in ctx.warnings), (
+        "the run must say why it is short, not just that it is")
+    assert "local" in ctx.artifacts, "the salvage must still reach the sink"
+
+
+async def test_a_deadline_blown_before_anything_exists_is_still_a_failure(deps):
+    """Salvage is not an excuse to call an empty run successful."""
+    from forge.pipeline.context import Deadline
+
+    ctx = RunContext(topic="No time at all")
+    ctx.deadline = Deadline(budget_seconds=0.0001)
+    result = await run_pipeline(ctx, deps)
+
+    assert result.status == "failed"
+    assert not result.draft

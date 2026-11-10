@@ -86,7 +86,8 @@ class ClaudeTextProvider:
     async def complete_json(self, *, stage: str, model: str, effort: str, system: str,
                             user: str, schema: dict[str, Any],
                             max_tokens: int = 8000,
-                            usage: Usage | None = None) -> dict[str, Any]:
+                            usage: Usage | None = None,
+                            budget: float | None = None) -> dict[str, Any]:
         raw = await self._call(stage=stage, model=model, effort=effort, system=system,
                                user=user, max_tokens=max_tokens, schema=schema,
                                usage=usage)
@@ -99,7 +100,8 @@ class ClaudeTextProvider:
 
     async def complete_text(self, *, stage: str, model: str, effort: str, system: str,
                             user: str, max_tokens: int = 8000,
-                            usage: Usage | None = None) -> str:
+                            usage: Usage | None = None,
+                            budget: float | None = None) -> str:
         return await self._call(stage=stage, model=model, effort=effort, system=system,
                                 user=user, max_tokens=max_tokens, schema=None,
                                 usage=usage)

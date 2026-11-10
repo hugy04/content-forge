@@ -19,6 +19,9 @@ async def run(ctx, deps) -> None:
         schema=DRAFT_SCHEMA,
         max_tokens=8000,
         usage=ctx.usage,
+        # Leave 20s behind: the gate and publish still have to run. Without this the
+        # provider's model fall-forward can spend the whole budget.
+        budget=max(0.0, ctx.deadline.remaining - 20.0),
     )
     # Some models return the markdown with its line breaks stripped; repair it
     # before the gate sees it, so structure checks judge the content and not a

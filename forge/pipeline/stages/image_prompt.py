@@ -18,4 +18,7 @@ async def run(ctx, deps) -> None:
         schema=IMAGE_PROMPT_SCHEMA,
         max_tokens=1200,
         usage=ctx.usage,
+        # Leave 30s behind: the image itself still has to be fetched. Without this the
+        # provider's model fall-forward can spend the whole budget.
+        budget=max(0.0, ctx.deadline.remaining - 30.0),
     )

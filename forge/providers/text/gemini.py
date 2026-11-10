@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 import httpx
@@ -43,6 +44,9 @@ from forge.providers.text.usage import Usage
 log = logging.getLogger("forge.text.gemini")
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
+
+# Below this, starting another model is spending time we cannot use.
+MIN_USEFUL_SECONDS = 8.0
 
 # Preference order used when the configured model is not available to this key.
 # Newest first; the first id the API actually offers wins.
@@ -109,6 +113,7 @@ class GeminiTextProvider:
         # Free-tier request-per-minute caps are low; spacing calls is cheaper
         # than discovering the cap with a 429 and a backoff.
         self._min_interval = min_interval
+        self._timeout = timeout
         # Models whose *daily* quota is spent. The breaker half-opens after 60s,
         # which is right for a transient fault and wrong for a cap that resets
         # at midnight Pacific - without this the pipeline re-probes a dead model
@@ -185,9 +190,11 @@ class GeminiTextProvider:
             "generationConfig": generation,
         }
 
-    async def _post(self, model: str, body: dict[str, Any]) -> httpx.Response:
+    async def _post(self, model: str, body: dict[str, Any],
+                    timeout: float | None = None) -> httpx.Response:
         return await self._client.post(
-            f"{API_ROOT}/models/{model}:generateContent", json=body
+            f"{API_ROOT}/models/{model}:generateContent", json=body,
+            timeout=timeout if timeout is not None else self._timeout,
         )
 
     def _fallback_models(self, primary: str) -> list[str]:
@@ -211,16 +218,38 @@ class GeminiTextProvider:
     async def _call(self, *, stage: str, model: str, effort: str, system: str,
                     user: str, max_tokens: int,
                     schema: dict[str, Any] | None,
-                    usage: Usage | None = None) -> str:
+                    usage: Usage | None = None,
+                    budget: float | None = None) -> str:
         primary = await self._resolve(model or self._default_model)
         candidates = self._fallback_models(primary)
         last: ProviderError | None = None
+        expires_at = None if budget is None else time.monotonic() + budget
 
         for index, candidate in enumerate(candidates):
+            # Falling forward is only worth doing while there is time to use
+            # the answer. Three models at three attempts each is nine calls;
+            # unbounded, that alone can outlast the run's whole budget and
+            # leave a later stage with nothing - which is precisely how a
+            # hosted run once produced an image and no article.
+            remaining = None
+            if expires_at is not None:
+                remaining = expires_at - time.monotonic()
+                # The gate applies to falling *forward*, not to trying at all:
+                # a tight budget should still make one attempt, because a model
+                # that answers immediately is exactly what we are hoping for.
+                # It is the second and third model that must justify themselves.
+                if index > 0 and remaining < MIN_USEFUL_SECONDS:
+                    log.warning(
+                        "gemini: %.1fs left, not enough to try %s; stopping the "
+                        "fall-forward with %d candidate(s) untried",
+                        remaining, candidate, len(candidates) - index,
+                    )
+                    break
             try:
                 return await self._attempt(
                     stage=stage, model=candidate, effort=effort, system=system,
                     user=user, max_tokens=max_tokens, schema=schema, usage=usage,
+                    timeout=None if remaining is None else min(self._timeout, remaining),
                 )
             except ProviderError as exc:
                 last = exc
@@ -236,7 +265,8 @@ class GeminiTextProvider:
     async def _attempt(self, *, stage: str, model: str, effort: str, system: str,
                        user: str, max_tokens: int,
                        schema: dict[str, Any] | None,
-                       usage: Usage | None = None) -> str:
+                       usage: Usage | None = None,
+                       timeout: float | None = None) -> str:
         resolved = model
         key = f"gemini:{resolved}"
 
@@ -249,7 +279,7 @@ class GeminiTextProvider:
                     schema=schema, with_thinking=resolved not in self._no_thinking,
                 )
                 try:
-                    response = await self._post(resolved, body)
+                    response = await self._post(resolved, body, timeout)
                 except httpx.HTTPError as exc:
                     BREAKER.record_failure(key)
                     raise ProviderError(f"gemini transport failure: {transport_detail(exc)}") from exc
@@ -264,7 +294,7 @@ class GeminiTextProvider:
                         system=system, user=user, effort=effort,
                         max_tokens=max_tokens, schema=schema, with_thinking=False,
                     )
-                    response = await self._post(resolved, body)
+                    response = await self._post(resolved, body, timeout)
 
                 if response.status_code in (429, 500, 502, 503, 504):
                     detail = _message(response)
@@ -321,10 +351,11 @@ class GeminiTextProvider:
     async def complete_json(self, *, stage: str, model: str, effort: str, system: str,
                             user: str, schema: dict[str, Any],
                             max_tokens: int = 8000,
-                            usage: Usage | None = None) -> dict[str, Any]:
+                            usage: Usage | None = None,
+                            budget: float | None = None) -> dict[str, Any]:
         raw = await self._call(stage=stage, model=model, effort=effort, system=system,
                                user=user, max_tokens=max_tokens, schema=schema,
-                               usage=usage)
+                               usage=usage, budget=budget)
         try:
             return json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -339,10 +370,11 @@ class GeminiTextProvider:
 
     async def complete_text(self, *, stage: str, model: str, effort: str, system: str,
                             user: str, max_tokens: int = 8000,
-                            usage: Usage | None = None) -> str:
+                            usage: Usage | None = None,
+                            budget: float | None = None) -> str:
         return await self._call(stage=stage, model=model, effort=effort, system=system,
                                 user=user, max_tokens=max_tokens, schema=None,
-                                usage=usage)
+                                usage=usage, budget=budget)
 
 
 CAPACITY_MARKERS = ("503", "429", "high demand", "overloaded", "quota", "404",

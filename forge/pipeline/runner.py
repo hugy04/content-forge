@@ -134,9 +134,28 @@ async def run_pipeline(ctx: RunContext, deps: Deps | None = None) -> RunContext:
         ctx.status = _verdict(ctx)
 
     except DeadlineExceeded as exc:
-        ctx.status = "failed"
         ctx.errors.append(f"deadline exceeded: {exc}")
         log.error("run %s exceeded its budget: %s", ctx.run_id, exc)
+        # Whatever finished is still worth having. Throwing away a generated
+        # image and a completed outline because the clock ran out discards work
+        # the caller already waited several minutes for - and on a free tier the
+        # clock usually ran out because an upstream model was queueing, not
+        # because anything here was wrong. Publish what exists, label it
+        # `partial`, and say plainly why it is short.
+        ctx.status = "partial" if (ctx.draft or ctx.image) else "failed"
+        if ctx.status == "partial":
+            ctx.warnings.append(
+                "the five-minute budget ran out before every stage finished; "
+                "what is attached is what completed. Free-tier models queue "
+                "under load and waiting for one is what consumed the budget - "
+                "a paid key removes this variability. See docs/RUNBOOK.md."
+            )
+            try:
+                await _timed(ctx, "publish", publish_stage.run(ctx, deps))
+            except Exception as salvage_exc:  # noqa: BLE001 - best effort only
+                log.warning("run %s could not publish salvage: %s",
+                            ctx.run_id, salvage_exc)
+                ctx.errors.append(f"salvage publish failed: {salvage_exc}")
     except Exception as exc:  # noqa: BLE001 - the record must capture any failure
         ctx.status = "failed"
         ctx.errors.append(f"{type(exc).__name__}: {exc}")

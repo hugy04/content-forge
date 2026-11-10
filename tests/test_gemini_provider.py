@@ -111,7 +111,7 @@ async def test_a_503_moves_to_the_next_model_rather_than_failing():
     tried: list[str] = []
 
     async def fake_attempt(*, stage, model, effort, system, user, max_tokens,
-                           schema, usage=None):
+                           schema, usage=None, timeout=None):
         tried.append(model)
         if model == "gemini-3.8-flash":
             raise ProviderError("gemini 503: This model is experiencing high demand")
@@ -132,7 +132,7 @@ async def test_a_400_fails_immediately_without_burning_other_models():
     tried: list[str] = []
 
     async def fake_attempt(*, stage, model, effort, system, user, max_tokens,
-                           schema, usage=None):
+                           schema, usage=None, timeout=None):
         tried.append(model)
         raise ProviderError("gemini 400: Invalid JSON payload")
 
@@ -179,7 +179,7 @@ async def test_an_open_breaker_falls_forward_instead_of_failing_the_run():
     tried: list[str] = []
 
     async def fake_attempt(*, stage, model, effort, system, user, max_tokens,
-                           schema, usage=None):
+                           schema, usage=None, timeout=None):
         tried.append(model)
         if model == "gemini-3.6-flash":
             raise CircuitOpen("circuit open for gemini:gemini-3.6-flash")
@@ -229,3 +229,57 @@ def test_daily_caps_are_distinguished_from_per_minute_caps(payload, expected):
 
     response = httpx.Response(429, json=payload)
     assert _is_daily_cap(response) is expected
+
+
+@pytest.mark.asyncio
+async def test_fall_forward_stops_when_the_budget_cannot_absorb_another_model():
+    """Three models at three attempts each is nine calls; that needs a bound.
+
+    Regression: on a hosted run the fall-forward spent 286 of a 300s budget
+    looking for a model that would answer, and the draft stage - the one that
+    writes the actual article - found 14s left and refused to start. Trying
+    another model is only worth doing while there is time to use its answer.
+    """
+    p = provider()
+    p._available = ["gemini-3.6-flash", "gemini-3.5-flash-lite",
+                    "gemini-flash-lite-latest"]
+    p._resolved["gemini-3.6-flash"] = "gemini-3.6-flash"
+    tried: list[str] = []
+
+    async def fake_attempt(*, stage, model, effort, system, user, max_tokens,
+                           schema, usage=None, timeout=None):
+        tried.append(model)
+        raise ProviderError("gemini 503: This model is experiencing high demand")
+
+    p._attempt = fake_attempt
+
+    with pytest.raises(ProviderError):
+        await p._call(stage="draft", model="gemini-3.6-flash", effort="low",
+                      system="s", user="u", max_tokens=10, schema=None,
+                      budget=1.0)
+
+    assert len(tried) == 1, (
+        f"a 1s budget must not start a second model, but tried {tried}")
+
+
+@pytest.mark.asyncio
+async def test_an_unbounded_call_still_tries_every_candidate():
+    """The bound must not quietly disable fall-forward when no budget is given."""
+    p = provider()
+    p._available = ["gemini-3.6-flash", "gemini-3.5-flash-lite",
+                    "gemini-flash-lite-latest"]
+    p._resolved["gemini-3.6-flash"] = "gemini-3.6-flash"
+    tried: list[str] = []
+
+    async def fake_attempt(*, stage, model, effort, system, user, max_tokens,
+                           schema, usage=None, timeout=None):
+        tried.append(model)
+        raise ProviderError("gemini 503: This model is experiencing high demand")
+
+    p._attempt = fake_attempt
+
+    with pytest.raises(ProviderError):
+        await p._call(stage="draft", model="gemini-3.6-flash", effort="low",
+                      system="s", user="u", max_tokens=10, schema=None)
+
+    assert len(tried) == 3, f"all three candidates should be tried, got {tried}"

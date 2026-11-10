@@ -51,6 +51,9 @@ async def run(ctx, deps) -> None:
             schema=DRAFT_SCHEMA,
             max_tokens=8000,
             usage=ctx.usage,
+            # A revision that cannot finish before publish is worse than
+            # no revision: the previous draft is already good enough to ship.
+            budget=max(0.0, ctx.deadline.remaining - 15.0),
         )
         revised = repair_draft(revised, ctx)
         # Keep the revision only if it moves the draft closer to passing.

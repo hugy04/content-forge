@@ -16,4 +16,7 @@ async def run(ctx, deps) -> None:
         schema=OUTLINE_SCHEMA,
         max_tokens=4000,
         usage=ctx.usage,
+        # Leave 45s behind: the draft, the gate and publish still have to run. Without this the
+        # provider's model fall-forward can spend the whole budget.
+        budget=max(0.0, ctx.deadline.remaining - 45.0),
     )
