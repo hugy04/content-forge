@@ -102,10 +102,16 @@ def test_every_select_has_a_guide_line(page):
     assert "chosen for you" in page
 
 
-def test_the_stepper_names_every_pipeline_stage(page):
-    """The six markers are the six stages, so the page cannot misdescribe them."""
-    for stage in ("plan", "outline", "draft", "qc", "image", "publish"):
-        assert f'"{stage}"' in page
+@pytest.mark.parametrize("name", ["Setup", "Outline", "Writing", "Review",
+                                  "Image", "Done"])
+def test_the_stepper_names_the_six_steps_in_plain_words(page, name):
+    assert f'["{name}",' in page
+
+
+def test_the_stepper_does_not_use_the_code_s_own_stage_names(page):
+    """"qc" and "publish" are module names; a content creator never says them."""
+    assert '["qc",' not in page
+    assert '["publish",' not in page
 
 
 def test_the_run_id_is_not_shown_to_a_reader(page):

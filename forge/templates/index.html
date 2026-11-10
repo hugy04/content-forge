@@ -58,7 +58,7 @@
   /* Horizontal stepper. Each step owns an equal column and draws its own
      connector to the left, so the rail lines up with the markers at any width
      without a separate track element. */
-  .steps{display:flex;margin-bottom:6px}
+  .steps{display:flex;margin:4px 0 16px}
   .step{flex:1;position:relative;text-align:center;padding-top:30px;
         font-size:11px;color:var(--dim);line-height:1.35}
   .step::before{content:"";position:absolute;top:11px;left:-50%;width:100%;
@@ -87,9 +87,6 @@
   .step.fail b{color:var(--bad)}
   @media (prefers-reduced-motion:reduce){.step.on .mark{animation:none}}
   @media (max-width:640px){.step span{display:none}}
-  .bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
-  .bar i{display:block;height:100%;width:0;background:var(--accent);
-         transition:width .4s ease}
   #result{margin-top:26px;display:none}
   .meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
   .chip{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--bg);
@@ -198,7 +195,6 @@
 
   <div id="status" class="panel">
     <div class="steps" id="steps"></div>
-    <div class="bar"><i id="fill"></i></div>
     <p class="hint" id="stepnote"></p>
     <p class="hint" id="elapsed">starting&hellip;</p>
   </div>
@@ -210,13 +206,15 @@
 <script>
 // Name, one-line description, and the sentence shown while it is running.
 // The descriptions are the stages in forge/pipeline/stages/, in order.
+// Named for someone making content, not for the stage modules they happen to
+// map to. "qc" is what the code calls it; nobody writing an article does.
 const STEPS = [
-  ["plan",    "choose settings", "Picking format, angle and art direction the recent runs have not used."],
-  ["outline", "plan the piece",  "Planning the structure: sections, word budgets and the image brief."],
-  ["draft",   "write it",        "Writing the piece against that plan, in the chosen voice."],
-  ["qc",      "check it",        "Checking length, structure and banned phrasing; revising if it misses."],
-  ["image",   "make the image",  "Generating the illustration, then applying the art direction."],
-  ["publish", "save the output", "Writing content.md, image.png and run.json, and recording the run."],
+  ["Setup",   "format and style",   "Choosing a format, angle and look that recent pieces have not used."],
+  ["Outline", "planning sections",  "Planning the structure: sections, lengths and an idea for the image."],
+  ["Writing", "writing the piece",  "Writing it against that plan, in the chosen voice."],
+  ["Review",  "checking the draft", "Checking length and quality, and rewriting anything that misses."],
+  ["Image",   "creating the image", "Creating the illustration, then applying the chosen look."],
+  ["Done",    "saving your files",  "Saving the article, the image and a record of how it was made."],
 ];
 
 // Wake the instance while the visitor is still typing. A free instance sleeps
@@ -228,7 +226,6 @@ fetch("/healthz").catch(()=>{});
 const form = document.getElementById("f");
 const statusBox = document.getElementById("status");
 const stepsBox = document.getElementById("steps");
-const fill = document.getElementById("fill");
 const elapsed = document.getElementById("elapsed");
 const result = document.getElementById("result");
 let timer, t0, step = 0;
@@ -244,7 +241,6 @@ function paintSteps(active, failedAt){
     return `<div class="${cls}"><i class="mark">${mark}</i>`
          +  `<b>${name}</b><span>${caption}</span></div>`;
   }).join("");
-  fill.style.width = Math.min(100, (active/STEPS.length)*100) + "%";
   const note = document.getElementById("stepnote");
   if (failedAt !== undefined) { note.textContent = ""; }
   else if (active >= STEPS.length) { note.textContent = "Done."; }
@@ -400,7 +396,7 @@ function render(d){
       ${art.url_path ? `<figure class="hero-fig">
           <img class="hero" src="${art.url_path}" alt="${esc(img.alt_text||"")}">
         </figure>` : ""}
-      ${d.warnings && d.warnings.length ? `<p class="hint">⚠ ${d.warnings.map(esc).join(" · ")}</p>` : ""}
+      ${d.notices && d.notices.length ? `<p class="hint">⚠ ${d.notices.map(esc).join(" · ")}</p>` : ""}
       <article id="body"></article>
       <div class="meta run-meta">
         <span class="chip">format <b>${esc(sel.style||"–")}</b></span>

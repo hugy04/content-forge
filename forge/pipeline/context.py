@@ -11,6 +11,13 @@ from typing import Any
 
 from forge.diversity.engine import Selection
 from forge.pipeline.normalise import normalise_topic
+
+# Repairs and diagnostics. They belong in run.json, not on the page.
+INTERNAL_WARNINGS = (
+    "markdown arrived without line breaks",
+    "art-direction treatment skipped",
+    "salvage publish failed",
+)
 from forge.providers.text.usage import Usage
 
 
@@ -122,6 +129,22 @@ class RunContext:
             self.warnings.append(note)
 
     @property
+    def notices(self) -> list[str]:
+        """The warnings a reader should actually see.
+
+        `warnings` is the engineering record: every repair, every fallback,
+        every thing that was not quite as expected. Most of it is of no use to
+        someone who asked for an article - being told that the markdown came
+        back without line breaks and was fixed is being shown the plumbing.
+
+        A notice earns its place by changing what the reader got, or what they
+        asked for. Everything else stays in the run record, where it is still
+        available to anyone debugging.
+        """
+        return [w for w in self.warnings
+                if not any(w.startswith(p) for p in INTERNAL_WARNINGS)]
+
+    @property
     def idempotency_key(self) -> str:
         basis = "|".join([
             self.topic.strip().lower(),
@@ -185,5 +208,6 @@ class RunContext:
             "usage": self.usage.as_dict(),
             "artifacts": self.artifacts,
             "warnings": self.warnings,
+            "notices": self.notices,
             "errors": self.errors,
         }

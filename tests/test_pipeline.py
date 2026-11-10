@@ -228,3 +228,32 @@ async def test_the_markdown_is_downloadable_even_when_the_image_is_missing(deps)
     assert local["markdown_url_path"].startswith("/artifacts/")
     # Independent of whether an image was produced.
     assert "image.png" not in local["markdown_url_path"]
+
+
+def test_a_repair_note_stays_out_of_the_reader_s_way():
+    """`warnings` is the engineering record; `notices` is what a reader sees."""
+    from forge.pipeline.context import RunContext
+
+    ctx = RunContext(topic="battery recycling")
+    ctx.warnings.append("markdown arrived without line breaks and was normalised "
+                        "(headings and lists restored)")
+    assert ctx.warnings, "the record keeps it"
+    assert ctx.notices == [], "the page does not show it"
+
+
+def test_a_warning_that_changed_the_request_is_shown():
+    """Being told the topic was rewritten is not plumbing, it is the answer."""
+    from forge.pipeline.context import RunContext
+
+    ctx = RunContext(topic="Make me a picture of a mango")
+    assert ctx.topic == "mango"
+    assert any("does not take instructions" in n for n in ctx.notices)
+
+
+def test_notices_travel_in_the_summary():
+    from forge.pipeline.context import RunContext
+
+    ctx = RunContext(topic="Please write an article about warehouse robotics")
+    summary = ctx.summary()
+    assert "notices" in summary and "warnings" in summary
+    assert summary["notices"] == ctx.notices
