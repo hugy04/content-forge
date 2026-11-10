@@ -252,5 +252,10 @@ async def healthz():
     return {"ok": True, "mode": settings.run_mode,
             "fake_providers": settings.fake_providers,
             "text_provider": settings.text_provider,
+            # The configured model id, because "which model is this instance
+            # actually asking for" is the first question when a deployment is
+            # slow, and guessing it from the outside is not possible.
+            "text_model": settings.active_text_model,
             "text_provider_configured": settings.text_provider_configured,
+            "text_timeout_seconds": settings.text_timeout_seconds,
             "image_chain": settings.image_provider_chain}

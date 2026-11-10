@@ -135,6 +135,14 @@ class Settings(BaseSettings):
         }.get(self.text_provider, "")
 
     @property
+    def active_text_model(self) -> str:
+        """The model id the active provider starts from."""
+        return {
+            "gemini": self.gemini_model,
+            "claude": self.claude_model,
+        }.get(self.text_provider, "")
+
+    @property
     def text_provider_configured(self) -> bool:
         return self.fake_providers or bool(self.text_provider_key)
 
