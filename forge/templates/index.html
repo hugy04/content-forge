@@ -108,6 +108,13 @@
 
 <script>
 const STEPS = ["plan","outline","draft","qc","image","publish"];
+
+// Wake the instance while the visitor is still typing. A free instance sleeps
+// after 15 minutes idle, and the first request pays ~60s of cold start before
+// any work begins - long enough that the browser can give up on it. /healthz is
+// unauthenticated and costs nothing, so the wake-up overlaps with the typing
+// instead of being charged to the first Generate.
+fetch("/healthz").catch(()=>{});
 const form = document.getElementById("f");
 const statusBox = document.getElementById("status");
 const stepsBox = document.getElementById("steps");
@@ -164,7 +171,19 @@ form.addEventListener("submit", async (e)=>{
     const data = await res.json();
     render(data.detail || data);
   } catch(err){
-    result.innerHTML = `<div class="panel err">Request failed: ${esc(String(err))}</div>`;
+    // A dropped connection here is almost always the free instance waking up:
+    // it sleeps after 15 minutes idle and takes about a minute to come back,
+    // which is longer than the browser will hold the request open. Saying
+    // "TypeError: Load failed" to someone who just wanted an article is not
+    // an error message, it is a stack trace with the context removed.
+    const elapsedSecs = (Date.now() - t0) / 1000;
+    const dropped = err instanceof TypeError;
+    result.innerHTML = dropped
+      ? `<div class="panel err">The connection dropped after ${elapsedSecs.toFixed(0)}s.
+         This instance sleeps when idle and takes about a minute to wake, which is
+         longer than the browser will wait. It is awake now &mdash; press Generate again
+         and it should run in well under a minute.</div>`
+      : `<div class="panel err">Request failed: ${esc(String(err))}</div>`;
     result.style.display = "block";
   } finally {
     clearInterval(timer); paintSteps(STEPS.length);
