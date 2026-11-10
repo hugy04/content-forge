@@ -115,14 +115,15 @@ def test_a_gated_instance_offers_a_way_out(monkeypatch, tmp_path):
     client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
     page = client.get("/", headers=_auth("u", "p")).text
     assert 'action="/logout"' in page
-    assert "Sign out" in page
+    assert "<button type=\"submit\">Sign out</button>" in page
 
 
 def test_an_open_instance_offers_no_sign_out(monkeypatch, tmp_path):
     """There is no session to end, so the button would do nothing."""
     client = _client(monkeypatch, DB_PATH=str(tmp_path / "f.db"))
     page = client.get("/").text
-    assert "Sign out" not in page
+    assert 'action="/logout"' not in page
+    assert "<button type=\"submit\">Sign out</button>" not in page
 
 
 def test_signing_out_clears_the_session_and_returns_to_login(monkeypatch, tmp_path):
@@ -169,3 +170,23 @@ def test_the_sign_out_cookie_delete_matches_how_it_was_set(monkeypatch, tmp_path
     assert "forge_session=" in cookie
     assert "httponly" in cookie.lower()
     assert "samesite=lax" in cookie.lower()
+
+
+def test_sign_out_waits_for_a_sleeping_instance(monkeypatch, tmp_path):
+    """A free instance drops the first request rather than queueing it, and
+    Safari answers that with its own error page - a strange thing to show
+    someone whose only crime was clicking Sign out. Generate and Revise
+    already wait for the instance; this now does too.
+    """
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    page = client.get("/", headers=_auth("u", "p")).text
+    assert 'signoutForm.addEventListener("submit"' in page
+    assert "waitForWake" in page
+
+
+def test_sign_out_still_works_without_javascript(monkeypatch, tmp_path):
+    """The handler is an enhancement over a real form, not a replacement."""
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    page = client.get("/", headers=_auth("u", "p")).text
+    assert 'method="post" action="/logout"' in page
+    assert "signoutForm.submit();" in page, "and it falls back to that form"

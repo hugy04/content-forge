@@ -316,6 +316,28 @@ newrun.addEventListener("click", ()=>{
   topic.focus();
 });
 
+// Sign out is a plain form post, so it works with no JavaScript at all. But
+// a free instance that has gone to sleep drops the first request rather than
+// queueing it, and Safari answers that with its own error page - which is a
+// strange thing to show someone whose only crime was clicking Sign out.
+// Generate and Revise already wait for the instance; this now does too.
+const signoutForm = document.querySelector(".signout");
+if (signoutForm) signoutForm.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const button = signoutForm.querySelector("button");
+  button.disabled = true; button.textContent = "Signing out\u2026";
+  for (let attempt = 1; attempt <= 3; attempt++){
+    try {
+      const res = await fetch("/logout", {method: "POST", redirect: "follow"});
+      if (res.ok || res.redirected) { window.location.href = "/login"; return; }
+    } catch (_) { /* asleep; wait for it below */ }
+    button.textContent = `Waking the server\u2026 (${attempt} of 3)`;
+    if (!await waitForWake(75000)) break;
+  }
+  // Three attempts and still nothing: let the browser do it the plain way.
+  signoutForm.submit();
+});
+
 wireGuides();
 document.getElementById("reset").addEventListener("click", ()=>{
   document.querySelectorAll("select[data-auto]").forEach(s=>{
