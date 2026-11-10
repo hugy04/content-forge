@@ -190,3 +190,30 @@ def test_sign_out_still_works_without_javascript(monkeypatch, tmp_path):
     page = client.get("/", headers=_auth("u", "p")).text
     assert 'method="post" action="/logout"' in page
     assert "signoutForm.submit();" in page, "and it falls back to that form"
+
+
+def test_the_sign_in_page_wakes_the_instance(monkeypatch, tmp_path):
+    """It was the one door into the application with no idea the instance
+    might be asleep.
+
+    A free instance spins down after fifteen minutes and takes about a minute
+    to come back, which is longer than a browser will hold a form post. The
+    request dies, Safari re-renders this page, and it looks as though the
+    password was wrong.
+    """
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    page = client.get("/login").text
+    assert 'fetch("/healthz")' in page, "wake it while they are still typing"
+    assert "Waking the server" in page, "and say so if they beat it to the button"
+
+
+def test_sign_in_still_works_without_javascript(monkeypatch, tmp_path):
+    """The waiting is an enhancement over a real form post, not a replacement."""
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    page = client.get("/login").text
+    assert 'method="post" action="/login"' in page
+    assert "form.submit()" in page, "and it falls back to that form"
+
+    response = client.post("/login", data={"username": "u", "password": "p"},
+                           follow_redirects=False)
+    assert response.status_code == 303

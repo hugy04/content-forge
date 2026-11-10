@@ -86,5 +86,41 @@
     {% if error %}<div class="err">{{ error }}</div>{% endif %}
   </form>
 </div>
+
+<script>
+// The sign-in page had no script at all, so it was the one door into the
+// application with no idea the instance might be asleep. A free instance
+// spins down after fifteen minutes and takes about a minute to come back,
+// which is longer than a browser will hold a form post: the request dies and
+// Safari re-renders this page, so it looks as though the password was wrong.
+//
+// Two things. Wake it while someone is still typing, and if it is not awake
+// by the time they press the button, wait rather than submitting into a
+// socket that is not there. The form still posts normally, so none of this
+// is required for it to work.
+fetch("/healthz").catch(()=>{});
+
+(function(){
+  const form = document.querySelector("form");
+  const button = form.querySelector("button");
+  form.addEventListener("submit", async (event)=>{
+    if (form.dataset.awake) return;
+    event.preventDefault();
+    button.disabled = true;
+    const until = Date.now() + 75000;
+    let waited = false;
+    while (Date.now() < until){
+      try { if ((await fetch("/healthz", {cache:"no-store"})).ok) break; }
+      catch (_) { /* still coming up */ }
+      waited = true;
+      button.textContent = "Waking the server\u2026";
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    button.textContent = waited ? "Signing in\u2026" : "Signing in\u2026";
+    form.dataset.awake = "1";
+    form.submit();
+  });
+})();
+</script>
 </body>
 </html>
