@@ -241,13 +241,30 @@ def test_a_repair_note_stays_out_of_the_reader_s_way():
     assert ctx.notices == [], "the page does not show it"
 
 
-def test_a_warning_that_changed_the_request_is_shown():
-    """Being told the topic was rewritten is not plumbing, it is the answer."""
+def test_a_wrapper_only_rewrite_is_recorded_not_announced():
+    """The normaliser only ever removes a wrapper.
+
+    "Write an article on longevity" becomes "longevity", and the piece is
+    about longevity either way. Announcing that above a piece visibly about
+    longevity tells the reader something they can see, in the course of
+    telling them they typed the wrong thing.
+    """
     from forge.pipeline.context import RunContext
 
     ctx = RunContext(topic="Make me a picture of a mango")
     assert ctx.topic == "mango"
-    assert any("does not take instructions" in n for n in ctx.notices)
+    assert any("does not take instructions" in w for w in ctx.warnings)
+    assert ctx.notices == []
+
+
+def test_a_warning_that_changed_the_result_is_still_shown():
+    """The distinction is the result, not the request."""
+    from forge.pipeline.context import RunContext
+
+    ctx = RunContext(topic="longevity")
+    ctx.warnings.append("the five-minute budget ran out before every stage "
+                        "finished; what is attached is what completed")
+    assert len(ctx.notices) == 1
 
 
 def test_notices_travel_in_the_summary():

@@ -24,6 +24,11 @@ INTERNAL_WARNINGS = (
     # decision nobody asked about, explained in the names the code uses for
     # its own options. The reader can see the picture.
     "composition ",
+    # The normaliser only ever removes a wrapper: "Write an article on X"
+    # becomes "X", and the piece is about X either way. Announcing that above
+    # a piece visibly about X tells the reader something they can already see,
+    # in the course of telling them they typed the wrong thing.
+    "read the request as a topic:",
     "art-direction treatment skipped",
     "salvage publish failed",
 )
