@@ -235,3 +235,38 @@ def test_the_watermark_parameter_is_only_sent_with_a_key():
 
     assert PollinationsProvider().token == ""
     assert PollinationsProvider(token="pk-abc").token == "pk-abc"
+
+
+def test_fixture_mode_makes_no_network_call_for_an_image(monkeypatch):
+    """The one promise fixture mode makes.
+
+    It was swapping the text provider and leaving the image chain alone, so a
+    run with no keys still called Pollinations, waited for it to fail, and fell
+    through to the local card: 97 seconds of real network on a mode whose
+    entire purpose is not to need any. A clone-and-run on a machine with no
+    network would have hung rather than finished.
+    """
+    from forge.config import Settings
+
+    settings = Settings(fake_providers=True, image_providers="pollinations,card")
+    assert "pollinations" not in settings.image_provider_chain
+    assert settings.image_provider_chain == ["fake", "card"]
+
+
+def test_fixture_mode_waits_for_nothing(monkeypatch):
+    from forge.config import Settings
+
+    settings = Settings(fake_providers=True,
+                        pollinations_min_interval_seconds=47.0)
+    assert settings.image_min_interval("pollinations") == 0.0
+
+
+def test_a_real_run_still_paces_itself():
+    """The pacing exists because the limit is real; only fixtures skip it."""
+    from forge.config import Settings
+
+    settings = Settings(fake_providers=False,
+                        pollinations_min_interval_seconds=47.0,
+                        image_providers="pollinations,card")
+    assert settings.image_min_interval("pollinations") == 47.0
+    assert settings.image_provider_chain == ["pollinations", "card"]

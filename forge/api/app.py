@@ -39,8 +39,12 @@ from forge.diversity.taxonomy import (
     PALETTES,
     STYLES,
 )
-from forge.pipeline.context import RunContext
-from forge.pipeline.runner import build_deps, run_pipeline
+from forge.diversity.engine import Selection
+from forge.pipeline.context import Deadline, RunContext
+from forge.pipeline.stages import publish as publish_stage
+from forge.pipeline.stages import refine as refine_stage
+from forge.providers.retry import transport_detail
+from forge.pipeline.runner import _persist, build_deps, run_pipeline
 from forge.providers.retry import BREAKER
 from forge.store.db import Store
 
@@ -294,6 +298,76 @@ async def generate(req: GenerateRequest):
         status_code=200 if result.status in ("completed", "partial") else 500,
         content=result.summary(),
     )
+
+
+class _RestoredImage:
+    """The image a previous run produced, carried into a revision unchanged.
+
+    `publish` only needs enough of an image to decide whether to reference one
+    and what to call it. Re-fetching the bytes would cost a minute of pacing to
+    produce a file that is already on disk.
+    """
+
+    def __init__(self, meta: dict):
+        self.provider = meta.get("provider", "none")
+        self.generated = meta.get("generated", False)
+        self.width = meta.get("width", 0)
+        self.height = meta.get("height", 0)
+        self.meta = meta.get("meta", {})
+        self.data = b""
+
+@app.post("/v1/runs/{run_id}/revise")
+async def revise(run_id: str, request: Request):
+    """Ask for a change to a piece that already exists.
+
+    Content teams do not accept first drafts; they mark them up. The pipeline
+    has always had a revision stage, but only QC could reach it - so a reader
+    who wanted a sharper opening had to re-run the whole thing and hope the
+    dice fell the same way, which they would not, because the point of the
+    engine is that they do not.
+
+    The image and the settings are kept. Only the words change.
+    """
+    stored = _store().get_run(run_id)
+    if not stored:
+        raise HTTPException(404, f"no run {run_id}")
+
+    body = await request.json()
+    instruction = (body or {}).get("instruction", "")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise HTTPException(400, 'send {"instruction": "what to change"}')
+
+    settings = get_settings()
+    deps = build_deps(settings)
+    payload = stored["payload"]
+
+    ctx = RunContext(topic=payload["topic"], overrides=payload.get("selection") or {})
+    # Its own budget: a revision is a fresh request, not the tail of the run it
+    # revises, which may have finished hours ago.
+    ctx.deadline = Deadline(budget_seconds=settings.deadline_seconds)
+    ctx.run_id = run_id
+    ctx.created_at = payload["created_at"]
+    ctx.outline = payload.get("outline") or {}
+    ctx.draft = {k: payload.get(k, "") for k in
+                 ("title", "subtitle", "body_markdown", "meta_description")}
+    ctx.image_prompt = payload.get("image") or {}
+    ctx.revisions = payload.get("revisions", 0)
+    ctx.selection = Selection(**payload["selection"]) if payload.get("selection") else None
+    # The previous run's own image, reused rather than regenerated: asking for
+    # a sharper opening is not asking for a different picture.
+    ctx.image = _RestoredImage(payload.get("image") or {})
+
+    try:
+        await refine_stage.run(ctx, deps, instruction)
+    except Exception as exc:  # noqa: BLE001 - surfaced, not swallowed
+        raise HTTPException(502, f"revision failed: {transport_detail(exc)}") from exc
+
+    ctx.status = "completed" if ctx.qc.get("passed") else "partial"
+    await publish_stage.run(ctx, deps)
+    # The same mapping the pipeline uses, rather than a second one that can
+    # drift from the table it writes to.
+    _persist(ctx, deps, ctx.status)
+    return JSONResponse(ctx.summary())
 
 
 @app.post("/webhooks/topic")

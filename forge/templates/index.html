@@ -45,6 +45,10 @@
   #reset{width:auto;margin:0;padding:0;background:none;border:0;color:var(--dim);
     font:inherit;font-size:12px;text-decoration:underline;cursor:pointer}
   #reset:hover{color:var(--accent)}
+  .revise{margin:20px 0 4px;padding-top:16px;border-top:1px solid var(--line)}
+  .revise-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+  .revise-row button{width:auto;margin:0;padding:11px 20px;white-space:nowrap}
+  @media print{.revise{display:none}}
   .guide{display:block;font-size:11px;color:var(--dim);margin-top:5px;
          min-height:14px;line-height:1.3}
   .dims{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
@@ -340,6 +344,38 @@ async function submitWithRetry(payload){
   }
 }
 
+// Content teams mark drafts up, they do not accept them. The revision stage
+// has always existed - only QC could reach it - so this is the same editor
+// taking an instruction from a person instead of from a word count.
+function wireRevise(runId){
+  const box = document.getElementById("instruction");
+  const go = document.getElementById("revise-go");
+  if (!box || !go || !runId) return;
+  const send = async ()=>{
+    const instruction = box.value.trim();
+    if (!instruction) { box.focus(); return; }
+    go.disabled = true; go.textContent = "Revising\u2026";
+    try {
+      const res = await fetch(`/v1/runs/${runId}/revise`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({instruction})
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "revision failed");
+      render(data.detail || data);
+    } catch(err){
+      const note = document.createElement("p");
+      note.className = "hint err";
+      note.textContent = String(err.message || err);
+      go.parentElement.after(note);
+    } finally {
+      go.disabled = false; go.textContent = "Revise";
+    }
+  };
+  go.addEventListener("click", send);
+  box.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+}
+
 form.addEventListener("submit", async (e)=>{
   e.preventDefault();
   const go = document.getElementById("go");
@@ -430,6 +466,16 @@ function render(d){
         <span class="chip">image via <b>${esc(img.provider||"–")}</b></span>
         <span class="chip">time <b>${secs}</b></span>
       </div>
+      <div class="revise">
+        <label for="instruction">Ask for a change</label>
+        <div class="revise-row">
+          <input id="instruction" maxlength="500"
+                 placeholder="e.g. sharpen the opening, or cut the third section">
+          <button type="button" id="revise-go">Revise</button>
+        </div>
+        <p class="hint">The image and the six settings stay as they are. Only the
+           words change, and the 500-800 word limit still applies.</p>
+      </div>
       <div class="actions">
         <button type="button" onclick="window.print()">Save as PDF</button>
         ${art.markdown_url_path ? `<a href="${art.markdown_url_path}" download>Download .md</a>` : ""}
@@ -437,6 +483,7 @@ function render(d){
       </div>
     </div>`;
   document.getElementById("body").innerHTML = md(body);
+  wireRevise(d.run_id);
   result.style.display = "block";
 }
 </script>

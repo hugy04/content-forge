@@ -124,6 +124,12 @@ class Settings(BaseSettings):
         # turning polite queueing into failed runs. An operator whose account
         # really is unmetered sets POLLINATIONS_MIN_INTERVAL_SECONDS=0 and says
         # so explicitly.
+        # Fixture mode makes no network calls, so there is nothing to pace
+        # against. Waiting anyway cost 97 seconds on a run that did no work,
+        # which breaks the one promise fixture mode makes: that someone can
+        # clone this, run it with no key, and have it finish.
+        if self.fake_providers:
+            return 0.0
         return {
             "pollinations": self.pollinations_min_interval_seconds,
             "gemini": self.gemini_image_min_interval_seconds,
@@ -163,6 +169,13 @@ class Settings(BaseSettings):
 
     @property
     def image_provider_chain(self) -> list[str]:
+        # Fixture mode promises an end-to-end run with no network and no keys.
+        # It was swapping the text provider and leaving this chain alone, so a
+        # fixture run still called Pollinations, waited for it to fail, and
+        # fell through to the local card - six seconds of real network per run
+        # on a mode whose entire purpose is not to need any.
+        if self.fake_providers:
+            return ["fake", "card"]
         return [p.strip() for p in self.image_providers.split(",") if p.strip()]
 
     @property
