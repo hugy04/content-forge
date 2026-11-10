@@ -77,3 +77,29 @@ def test_the_page_offers_the_revision_box(client):
     assert 'id="instruction"' in page
     assert 'id="revise-go"' in page
     assert "/revise" in page
+
+
+def test_a_revision_shows_its_own_progress(client):
+    """Ten to thirty seconds with nothing but a button label is a dead page."""
+    page = client.get("/").text
+    assert "REVISE_STEPS" in page
+    assert '["Rewriting", "applying your change"' in page
+    assert "paintSteps(0, undefined, REVISE_STEPS)" in page
+
+
+def test_a_revision_retries_a_dropped_connection_too(client):
+    """It drops for the same reason a generate does, and used to show the
+    browser's own words with no retry behind them."""
+    page = client.get("/").text
+    assert "await submitWithRetry(" in page
+    assert "/revise`," in page
+    # The raw exception is never what the reader is shown.
+    assert "String(err.message || err)" in page
+    assert "The connection dropped three times." in page
+
+
+def test_one_retry_policy_serves_both_calls(client):
+    """Two copies of a retry policy is one copy that will be forgotten."""
+    page = client.get("/").text
+    assert page.count("async function submitWithRetry") == 1
+    assert page.count("function waitForWake") == 1

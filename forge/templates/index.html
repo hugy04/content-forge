@@ -236,8 +236,11 @@ let timer, t0, tTotal, attemptNo = 1, step = 0;
 
 // `active` is the index now running; STEPS.length means every step is done.
 // `failedAt` marks the step that was in flight when the request died.
-function paintSteps(active, failedAt){
-  stepsBox.innerHTML = STEPS.map(([name, caption], i)=>{
+let currentSteps = STEPS;
+
+function paintSteps(active, failedAt, steps){
+  currentSteps = steps || currentSteps;
+  stepsBox.innerHTML = currentSteps.map(([name, caption], i)=>{
     let cls = "step", mark = String(i+1);
     if (i === failedAt)      { cls += " fail"; mark = "!"; }
     else if (i < active)     { cls += " done"; mark = "\u2713"; }
@@ -247,8 +250,11 @@ function paintSteps(active, failedAt){
   }).join("");
   const note = document.getElementById("stepnote");
   if (failedAt !== undefined) { note.textContent = ""; }
-  else if (active >= STEPS.length) { note.textContent = "All six steps completed."; }
-  else { note.textContent = STEPS[active][2]; }
+  else if (active >= currentSteps.length) {
+    note.textContent = currentSteps === STEPS
+      ? "All six steps completed." : "Revision complete.";
+  }
+  else { note.textContent = currentSteps[active][2]; }
 }
 
 function esc(s){ return (s||"").replace(/[&<>"]/g, c =>
@@ -296,6 +302,12 @@ function label(dimension, key){
   return (LABELS[dimension] && LABELS[dimension][key]) || key.replace(/_/g, " ");
 }
 
+const REVISE_STEPS = [
+  ["Rewriting", "applying your change", "Making the change you asked for, and nothing else."],
+  ["Review",    "checking the draft",   "Checking the result is still between 500 and 800 words."],
+  ["Done",      "saving your files",    "Saving the revised article alongside its original image."],
+];
+
 const DIMENSIONS = ["style","angle","audience","art_direction",
                     "palette","composition"];
 
@@ -309,10 +321,14 @@ const DIMENSIONS = ["style","angle","audience","art_direction",
 // Without that key this would be a duplicate-work bug rather than a fix.
 const MAX_ATTEMPTS = 3;
 
-function post(payload){
-  return fetch("/v1/generate", {
+function post(url, payload){
+  return fetch(url, {
     method:"POST", headers:{"Content-Type":"application/json"}, body: payload
-  }).then(r => r.json());
+  }).then(async r => {
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || `request failed (${r.status})`);
+    return data;
+  });
 }
 
 // Wait for the instance to answer again before spending the retry on a socket
@@ -327,16 +343,17 @@ async function waitForWake(limitMs){
   return false;
 }
 
-async function submitWithRetry(payload){
+async function submitWithRetry(payload, url, onRetry){
   for (let attempt = 1; ; attempt++){
     try {
-      return await post(payload);
+      return await post(url || "/v1/generate", payload);
     } catch (err) {
       // Only a transport failure is worth retrying. A real API error has a
       // response and should be shown, not silently attempted again.
       if (!(err instanceof TypeError) || attempt >= MAX_ATTEMPTS) throw err;
       elapsed.textContent = `connection lost - reconnecting (attempt ${attempt+1} of ${MAX_ATTEMPTS})`;
       await waitForWake(75000);
+      if (onRetry) { onRetry(attempt + 1); continue; }
       // The pipeline restarts, so the markers do. The elapsed clock does not:
       // it is the wait, and the wait kept running.
       attemptNo = attempt + 1; t0 = Date.now(); step = 0; paintSteps(0);
@@ -355,20 +372,34 @@ function wireRevise(runId){
     const instruction = box.value.trim();
     if (!instruction) { box.focus(); return; }
     go.disabled = true; go.textContent = "Revising\u2026";
+    statusBox.style.display = "block";
+    step = 0; tTotal = t0 = Date.now(); attemptNo = 1;
+    paintSteps(0, undefined, REVISE_STEPS);
+    clearInterval(timer);
+    timer = setInterval(()=>{
+      const secs = ((Date.now()-t0)/1000);
+      elapsed.textContent = secs.toFixed(0) + "s elapsed";
+      if (secs > (step+1)*9 && step < REVISE_STEPS.length-1){ step++; paintSteps(step); }
+    }, 500);
     try {
-      const res = await fetch(`/v1/runs/${runId}/revise`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({instruction})
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "revision failed");
+      const data = await submitWithRetry(
+        JSON.stringify({instruction}), `/v1/runs/${runId}/revise`,
+        () => { step = 0; t0 = Date.now(); paintSteps(0, undefined, REVISE_STEPS); });
       render(data.detail || data);
     } catch(err){
       const note = document.createElement("p");
       note.className = "hint err";
-      note.textContent = String(err.message || err);
+      note.textContent = err instanceof TypeError
+        ? "The connection dropped three times. The free instance is being "
+          + "recycled; give it a moment and press Revise again - the piece "
+          + "above is untouched."
+        : String(err.message || err);
       go.parentElement.after(note);
     } finally {
+      clearInterval(timer);
+      paintSteps(REVISE_STEPS.length);
+      elapsed.textContent =
+        `revised in ${((Date.now()-tTotal)/1000).toFixed(0)}s`;
       go.disabled = false; go.textContent = "Revise";
     }
   };
