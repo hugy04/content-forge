@@ -461,7 +461,12 @@ async function post(url, payload){
     }
     throw new Error(`unexpected reply from the server (${r.status})`);
   }
-  if (!r.ok) throw new Error(data.detail || `request failed (${r.status})`);
+  if (!r.ok) {
+    const why = data.detail
+      || (Array.isArray(data.errors) && data.errors.length && data.errors[0])
+      || `request failed (${r.status})`;
+    throw new Error(String(why));
+  }
   return data;
 }
 
@@ -592,7 +597,7 @@ form.addEventListener("submit", async (e)=>{
            : `This instance sleeps when idle and takes about a minute to wake,
               which is longer than the browser will wait. It is awake now - press
               Generate again and it should run in well under a minute.`}</div>`
-      : `<div class="panel err">Request failed: ${esc(String(err))}</div>`;
+      : `<div class="panel err">${esc(humanError(String(err)))}</div>`;
     result.style.display = "block";
   } finally {
     clearInterval(timer);
@@ -607,6 +612,22 @@ form.addEventListener("submit", async (e)=>{
     go.disabled = false; go.textContent = "Generate";
   }
 });
+
+// The provider's own words are accurate and written for an operator. A 503
+// from an overloaded model is not something a reader did, and "try again" is
+// genuinely the right advice, so say that rather than quoting the API.
+function humanError(raw){
+  if (/\b503\b|high demand|overloaded|unavailable/i.test(raw)) {
+    return "The writing model is busy right now - Google returns this when "
+         + "demand spikes, and it usually clears in a minute. Press Generate "
+         + "again. Nothing was charged and nothing was saved.";
+  }
+  if (/\b429\b|rate limit|quota/i.test(raw)) {
+    return "The daily limit on the free model has been reached. It resets at "
+         + "midnight Pacific time.";
+  }
+  return `That run did not finish: ${raw}`;
+}
 
 function render(d){
   const sel = d.selection || {};

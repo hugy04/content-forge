@@ -284,3 +284,17 @@ def test_the_pace_hint_survives_a_private_window(page):
 
 def test_the_image_step_says_why_it_might_wait(page):
     assert "so this step waits if a piece was made recently" in page
+
+
+def test_a_failed_run_says_what_actually_failed(page):
+    """A failed run returns its whole summary, which carries `errors`, not
+    `detail` - so the page showed "request failed (500)" while holding the
+    reason in its hand."""
+    assert "Array.isArray(data.errors) && data.errors.length" in page
+
+
+def test_a_busy_model_is_explained_not_quoted(page):
+    """The provider's words are accurate and written for an operator."""
+    assert "function humanError(raw)" in page
+    assert "The writing model is busy right now" in page
+    assert "The daily limit on the free model has been reached" in page

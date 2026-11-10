@@ -304,3 +304,27 @@ def test_the_pinned_model_is_the_one_with_the_most_room():
     from forge.providers.text.gemini import MODEL_PREFERENCE
 
     assert MODEL_PREFERENCE[0] == "gemini-3.5-flash-lite"
+
+
+def test_a_capacity_failure_sweeps_the_list_again_while_budget_remains():
+    """A 503 says "try again later", and later is a real option.
+
+    A run gave up 29 seconds in with 270 still on the clock, which wastes the
+    budget the deadline exists to spend.
+    """
+    from forge.providers.text.gemini import CAPACITY_RETRY_PAUSE, MIN_USEFUL_SECONDS
+
+    assert CAPACITY_RETRY_PAUSE > 0
+    # Two sweeps and a pause have to leave room for the rest of the pipeline.
+    assert CAPACITY_RETRY_PAUSE + MIN_USEFUL_SECONDS < 60
+
+
+def test_the_second_sweep_is_bounded_by_the_same_deadline():
+    """It recurses with what is left, so it cannot outlive the budget."""
+    import inspect
+
+    from forge.providers.text import gemini
+
+    source = inspect.getsource(gemini.GeminiTextProvider._call)
+    assert "budget=expires_at - time.monotonic()" in source
+    assert "remaining > CAPACITY_RETRY_PAUSE + MIN_USEFUL_SECONDS" in source

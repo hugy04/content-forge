@@ -47,6 +47,10 @@ API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 
 # Below this, starting another model is spending time we cannot use.
 MIN_USEFUL_SECONDS = 8.0
+# How long to wait before sweeping the model list a second time.
+# Long enough for a demand spike to pass, short enough that two
+# sweeps and the rest of the pipeline still fit inside the budget.
+CAPACITY_RETRY_PAUSE = 12.0
 
 # Preference order used when the configured model is not available to this key.
 # Newest first; the first id the API actually offers wins.
@@ -277,6 +281,25 @@ class GeminiTextProvider:
                     )
                     continue
                 raise
+        # Every candidate was out of capacity. A 503 says "try again later",
+        # and later is a real option when the run has most of its five minutes
+        # left: giving up at 29 seconds with 270 still on the clock wastes the
+        # budget the deadline exists to spend. So pause and sweep the list
+        # again, as long as the wait plus one real attempt still fit.
+        if _is_capacity_failure(last) and expires_at is not None:
+            remaining = expires_at - time.monotonic()
+            if remaining > CAPACITY_RETRY_PAUSE + MIN_USEFUL_SECONDS:
+                log.warning(
+                    "gemini: every candidate out of capacity, %.0fs of budget "
+                    "left; waiting %.0fs and trying the list once more",
+                    remaining, CAPACITY_RETRY_PAUSE,
+                )
+                await asyncio.sleep(CAPACITY_RETRY_PAUSE)
+                return await self._call(
+                    stage=stage, model=model, effort=effort, system=system,
+                    user=user, max_tokens=max_tokens, schema=schema,
+                    usage=usage, budget=expires_at - time.monotonic(),
+                )
         raise last or ProviderError("gemini: no candidate model succeeded")
 
     async def _attempt(self, *, stage: str, model: str, effort: str, system: str,
