@@ -61,6 +61,7 @@ stroke-linecap='round' stroke-linejoin='round'/></svg>");
   details#adv[open] summary .chev{transform:rotate(90deg)}
   details#adv[open] summary{border-color:var(--accent);color:var(--accent)}
   details#adv[open] summary .chev{color:var(--accent)}
+  .pace{color:var(--warn)}
   #reset{width:auto;margin:0;padding:0;background:none;border:0;color:var(--dim);
     font:inherit;font-size:12px;text-decoration:underline;cursor:pointer}
   #reset:hover{color:var(--accent)}
@@ -219,6 +220,7 @@ stroke-linecap='round' stroke-linejoin='round'/></svg>");
       <button id="go" type="submit">Generate</button>
       <p class="hint">Anything left on Auto is picked for you, avoiding whatever
          the recent pieces already used.</p>
+      <p class="hint pace" id="pace" hidden></p>
     </form>
   </div>
 
@@ -242,7 +244,7 @@ const STEPS = [
   ["Outline", "planning sections",  "Planning the structure: sections, lengths and an idea for the image."],
   ["Writing", "writing the piece",  "Writing it against that plan, in the chosen voice."],
   ["Review",  "checking the draft", "Checking length and quality, and rewriting anything that misses."],
-  ["Image",   "creating the image", "Creating the illustration, then applying the chosen look."],
+  ["Image",   "creating the image", "Creating the illustration. The free image service allows one every 45 seconds, so this step waits if a piece was made recently."],
   ["Done",    "saving your files",  "Saving the article, the image and a record of how it was made."],
 ];
 
@@ -384,6 +386,39 @@ const REVISE_STEPS = [
   ["Review",    "checking the draft",   "Checking the result is still between 500 and 800 words."],
   ["Done",      "saving your files",    "Saving the revised article alongside its original image."],
 ];
+
+// The free image service allows one image every 45 seconds from an address.
+// The pipeline already waits that out, which is the right behaviour and looks
+// from the outside exactly like being slow. Saying so turns an unexplained
+// two-minute run into a known one, and lets someone choose to wait.
+const IMAGE_INTERVAL_MS = 47000;
+const paceNote = document.getElementById("pace");
+let paceTimer;
+
+function lastImageAt(){
+  try { return Number(localStorage.getItem("forge:lastImage")) || 0; }
+  catch (_) { return 0; }
+}
+function rememberImage(){
+  try { localStorage.setItem("forge:lastImage", String(Date.now())); }
+  catch (_) { /* private window; the hint simply will not show */ }
+}
+
+function paintPace(){
+  const left = IMAGE_INTERVAL_MS - (Date.now() - lastImageAt());
+  if (left <= 0){ paceNote.hidden = true; clearInterval(paceTimer); return; }
+  paceNote.hidden = false;
+  paceNote.textContent =
+    `The free image service allows one image every 45 seconds. Generating now `
+    + `would wait about ${Math.ceil(left / 1000)}s at the image step. Read this `
+    + `one first and the wait is gone.`;
+}
+
+function watchPace(){
+  clearInterval(paceTimer);
+  paintPace();
+  paceTimer = setInterval(paintPace, 1000);
+}
 
 const DIMENSIONS = ["style","angle","audience","art_direction",
                     "palette","composition"];
@@ -620,6 +655,7 @@ function render(d){
     </div>`;
   document.getElementById("body").innerHTML = md(body);
   wireRevise(d.run_id);
+  if ((d.image || {}).generated) { rememberImage(); watchPace(); }
   newrun.hidden = false;
   result.style.display = "block";
 }

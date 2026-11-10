@@ -264,3 +264,23 @@ def test_the_settings_do_not_wear_the_platform_s_own_chrome(page):
     assert "appearance:none" in page
     assert "-webkit-appearance:none" in page
     assert "image/svg+xml" in page, "one chevron, drawn in the page's own ink"
+
+
+def test_the_image_rate_limit_is_stated_rather_than_felt(page):
+    """The pipeline waits out the free service's one-image-per-45-seconds
+    limit, which is correct and looks from the outside exactly like being
+    slow. A run that takes two minutes for a stated reason is a different
+    experience from one that takes two minutes."""
+    assert 'id="pace"' in page
+    assert "IMAGE_INTERVAL_MS = 47000" in page
+    assert "one image every 45 seconds" in page
+
+
+def test_the_pace_hint_survives_a_private_window(page):
+    """localStorage throws there; the hint is a convenience, not a dependency."""
+    assert "catch (_) { return 0; }" in page
+    assert "private window; the hint simply will not show" in page
+
+
+def test_the_image_step_says_why_it_might_wait(page):
+    assert "so this step waits if a piece was made recently" in page
