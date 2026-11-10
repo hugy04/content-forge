@@ -72,15 +72,12 @@
        page serving synthetic output must say so. #}
     {% if fake %}<span class="tag">fixtures</span>{% endif %}
   </header>
-  <p class="lede">A topic goes in. A 500&ndash;800 word piece and a matching
-     AI-generated image come out, in a different format and visual style each time.</p>
-
   <div class="panel">
     <form id="f">
       <div class="row">
         <div>
           <label for="topic">Topic</label>
-          <input id="topic" name="topic" required minlength="3"
+          <input id="topic" name="topic" required minlength="3" maxlength="300"
                  placeholder="e.g. How dealerships use AI to cut service-bay turnaround time">
         </div>
         <div>

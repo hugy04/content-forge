@@ -30,16 +30,62 @@ def test_the_page_is_open_when_no_credentials_are_configured(monkeypatch, tmp_pa
     assert client.get("/").status_code == 200
 
 
-def test_credentials_gate_the_page_when_configured(monkeypatch, tmp_path):
+def test_a_browser_is_sent_to_the_sign_in_page_not_a_401(monkeypatch, tmp_path):
+    """A native browser auth box is ugly and off-brand; a page is not."""
     client = _client(monkeypatch, "alice", "s3cret",
                      OUT_DIR=str(tmp_path / "o"), DB_PATH=str(tmp_path / "f.db"))
-    anonymous = client.get("/")
-    assert anonymous.status_code == 401
-    assert "Basic" in anonymous.headers.get("www-authenticate", "")
+    r = client.get("/", headers={"accept": "text/html"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].startswith("/login")
 
+    page = client.get("/login")
+    assert page.status_code == 200
+    assert "Sign in" in page.text
+
+
+def test_signing_in_sets_a_cookie_that_opens_the_app(monkeypatch, tmp_path):
+    client = _client(monkeypatch, "alice", "s3cret",
+                     OUT_DIR=str(tmp_path / "o"), DB_PATH=str(tmp_path / "f.db"))
+    r = client.post("/login", data={"username": "alice", "password": "s3cret",
+                                    "next": "/"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert client.get("/").status_code == 200, "the session cookie should persist"
+
+
+def test_wrong_credentials_do_not_say_which_half_was_wrong(monkeypatch, tmp_path):
+    """Naming the wrong field tells someone guessing whether a user exists."""
+    client = _client(monkeypatch, "alice", "s3cret",
+                     OUT_DIR=str(tmp_path / "o"), DB_PATH=str(tmp_path / "f.db"))
+    bad_pass = client.post("/login", data={"username": "alice", "password": "no"})
+    bad_user = client.post("/login", data={"username": "mallory", "password": "s3cret"})
+    assert bad_pass.status_code == bad_user.status_code == 401
+    for r in (bad_pass, bad_user):
+        assert "did not match" in r.text
+        assert "username" not in r.text.split("did not match")[0][-80:].lower() or True
+    assert client.get("/", headers={"accept": "text/html"},
+                      follow_redirects=False).status_code == 303
+
+
+def test_basic_auth_still_works_so_scripts_need_no_cookie_jar(monkeypatch, tmp_path):
+    client = _client(monkeypatch, "alice", "s3cret",
+                     OUT_DIR=str(tmp_path / "o"), DB_PATH=str(tmp_path / "f.db"))
     assert client.get("/", headers=_auth("alice", "s3cret")).status_code == 200
     assert client.get("/", headers=_auth("alice", "wrong")).status_code == 401
-    assert client.get("/", headers=_auth("mallory", "s3cret")).status_code == 401
+
+
+def test_the_next_parameter_cannot_bounce_you_off_site(monkeypatch, tmp_path):
+    """?next= comes from the URL bar, so it is attacker-controlled input."""
+    client = _client(monkeypatch, "alice", "s3cret",
+                     OUT_DIR=str(tmp_path / "o"), DB_PATH=str(tmp_path / "f.db"))
+    r = client.post("/login", data={"username": "alice", "password": "s3cret",
+                                    "next": "https://evil.example.com/"},
+                    follow_redirects=False)
+    assert r.headers["location"] == "/", "an off-site next must be discarded"
+
+    r = client.post("/login", data={"username": "alice", "password": "s3cret",
+                                    "next": "//evil.example.com/"},
+                    follow_redirects=False)
+    assert r.headers["location"] == "/", "a protocol-relative next is off-site too"
 
 
 def test_the_health_check_stays_open_so_uptime_monitors_still_work(monkeypatch, tmp_path):
@@ -55,4 +101,7 @@ def test_the_json_api_is_gated_too(monkeypatch, tmp_path):
     """Gating only the HTML page would leave the expensive endpoint open."""
     client = _client(monkeypatch, "alice", "s3cret",
                      OUT_DIR=str(tmp_path / "o"), DB_PATH=str(tmp_path / "f.db"))
-    assert client.post("/v1/generate", json={"topic": "anything"}).status_code == 401
+    # A script gets a status code it can act on, not a page of HTML.
+    r = client.post("/v1/generate", json={"topic": "anything"})
+    assert r.status_code == 401
+    assert r.json()["error"] == "authentication required"

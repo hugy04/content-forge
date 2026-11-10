@@ -205,11 +205,16 @@ property of the deployment rather than a surprise.
 
 **Gating the deployment.** A public URL is also an open endpoint that spends the
 project's free-tier quota for anyone who finds it. Set `BASIC_AUTH_USER` and
-`BASIC_AUTH_PASS` in the Render dashboard and the whole surface asks for a
-username and password; share them with whoever should have access. `/healthz`
-deliberately stays open, so an uptime monitor needs no credentials and a gated
-deployment does not look permanently down. Leave both blank and the app is open,
-which is what local development wants.
+`BASIC_AUTH_PASS` in the Render dashboard and the whole surface is gated; share
+them with whoever should have access. Two ways in, because two kinds of caller
+arrive: a browser is redirected to `/login`, a sign-in page styled like the rest
+of the app, and a script can send `Authorization: Basic` instead, so `curl` and
+CI need no cookie jar. The session cookie is derived from the credentials rather
+than stored, so changing the password invalidates every cookie already issued.
+
+`/healthz` deliberately stays open, so an uptime monitor needs no credentials and
+a gated deployment does not look permanently down. Leave both variables blank and
+the app is open, which is what local development and the test suite want.
 
 **When the budget runs out.** The five-minute limit is enforced, not hoped for:
 a stage that cannot finish in the time left refuses to start rather than

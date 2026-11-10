@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --line:#252b35; --ink:#e8eaed; --dim:#9aa4b2;
+    --accent:#f0a830; --ok:#3ddc97; --warn:#ffb648; --bad:#ff6b6b; --radius:10px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f7f9; --panel:#fff; --line:#e3e6ea; --ink:#15171c; --dim:#5d6676; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:40px 16px 80px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  h1{font-size:24px;margin:0;letter-spacing:-.02em}
+  .tag{font-size:12px;color:var(--dim);border:1px solid var(--line);
+       padding:2px 8px;border-radius:99px}
+  .lede{color:var(--dim);margin:0 0 28px}
+  .panel{background:var(--panel);border:1px solid var(--line);
+         border-radius:var(--radius);padding:20px}
+  label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.07em;
+        color:var(--dim);margin-bottom:6px}
+  input,select{width:100%;padding:11px 12px;background:var(--bg);color:var(--ink);
+    border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .row{display:grid;grid-template-columns:1fr 220px;gap:14px;align-items:end}
+  @media (max-width:640px){.row{grid-template-columns:1fr}}
+  button{margin-top:16px;width:100%;padding:13px;background:var(--accent);color:#13151a;
+    border:0;border-radius:8px;font-size:15px;font-weight:650;cursor:pointer}
+  button:disabled{opacity:.55;cursor:progress}
+  .hint{font-size:12px;color:var(--dim);margin-top:10px}
+  #status{margin-top:22px;display:none}
+  .steps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .step{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);
+        color:var(--dim)}
+  .step.on{border-color:var(--accent);color:var(--accent)}
+  .step.done{border-color:var(--ok);color:var(--ok)}
+  .bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);
+         transition:width .4s ease}
+  #result{margin-top:26px;display:none}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+  .chip{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--bg);
+        border:1px solid var(--line);color:var(--dim)}
+  .chip b{color:var(--ink);font-weight:600}
+  .verdict{font-size:12px;padding:3px 10px;border-radius:99px;font-weight:650}
+  .v-completed{background:rgba(61,220,151,.14);color:var(--ok)}
+  .v-partial{background:rgba(255,182,72,.14);color:var(--warn)}
+  .v-failed{background:rgba(255,107,107,.14);color:var(--bad)}
+  img.hero{width:100%;border-radius:var(--radius);border:1px solid var(--line);display:block}
+  article{margin-top:22px}
+  article h2{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  article p{margin:0 0 14px}
+  .err{color:var(--bad)}
+  footer{margin-top:30px;font-size:12px;color:var(--dim)}
+  code{background:var(--bg);border:1px solid var(--line);padding:1px 5px;border-radius:4px;
+       font-size:12px}
+</style>
+<style>
+  /* The sign-in page is one short form, so it is centred rather than stretched
+     across the 980px the main page uses. Everything else - colours, inputs,
+     button - is inherited, so this reads as the same product. */
+  .wrap{max-width:380px;padding-top:14vh}
+  .lede{margin-bottom:18px}
+  label{margin-top:14px}
+  .err{margin-top:14px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Sign in</h1></header>
+  <p class="lede">This instance is private.</p>
+
+  <form class="panel" method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label for="u">Username</label>
+    <input id="u" name="username" autocomplete="username" autofocus required>
+    <label for="p">Password</label>
+    <input id="p" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  </form>
+</div>
+</body>
+</html>

@@ -173,7 +173,7 @@ Show the Google Doc + Sheet, or say the local artifacts are the sink.
 > "Everything's in the repo: the design doc has the architecture, the
 > error-handling matrix, the scale analysis and an explicit assumptions section.
 > There's a runbook, and the whole thing runs with no API key at all in fixture
-> mode — a hundred and twenty tests, no network — so it's reproducible on any
+> mode — a hundred and twenty-four tests, no network — so it's reproducible on any
 > machine.
 >
 > The honest gap: there's no retrieval, so the model writes from parametric
