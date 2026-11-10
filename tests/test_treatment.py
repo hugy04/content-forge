@@ -230,3 +230,24 @@ def test_the_accent_only_touches_the_brightest_band():
     # Midtone red must be near paper's, not near the orange accent's.
     assert abs(reds[128] - _rgb(paper)[0]) < 30
     assert reds[255] > reds[128], "highlights still warm towards the accent"
+
+
+@pytest.mark.parametrize("palette", list(PALETTES))
+def test_every_palette_reads_as_its_name_not_its_accent(palette):
+    """The property, checked on all eight rather than the one that was reported.
+
+    A photograph is mostly midtones, so whatever the ramp puts at luminance 128
+    becomes the colour of the picture. That has to be the palette's light tone.
+    """
+    from forge.providers.image.card import PALETTE_HEX
+    from forge.providers.image.treatment import _palette_stops, _ramp, _rgb
+
+    dark, paper, accent = PALETTE_HEX[palette]
+    table = _ramp([_rgb(s) for s in _palette_stops(dark, paper, accent)])
+    midtone = (table[128], table[256 + 128], table[512 + 128])
+
+    def away(colour):
+        return sum((a - b) ** 2 for a, b in zip(midtone, colour)) ** 0.5
+
+    assert away(_rgb(paper)) < away(_rgb(accent)), (
+        f"{palette}: midtone {midtone} is nearer its accent than its paper")
