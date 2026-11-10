@@ -312,3 +312,23 @@ def test_the_framing_override_is_not_explained_to_the_reader():
 
     assert ctx.warnings, "the run record still explains it"
     assert ctx.notices == [], "the page does not"
+
+
+@pytest.mark.parametrize("art", ["editorial_photography", "cinematic_render"])
+def test_the_photographic_directions_use_the_same_ramp_as_everything_else(art):
+    """"Forest" came back sepia.
+
+    These two were left on the old dark -> accent -> paper ramp because they
+    blend heavily with the photograph, so the accent never *looked* like it
+    was taking over. It was still taking the midtones, and a photograph is
+    mostly midtones: forest green, terracotta, cream and brass rendered as
+    brass, because brass sat where the greens should have been.
+    """
+    import inspect
+
+    from forge.providers.image import treatment
+
+    source = inspect.getsource(treatment.apply)
+    branch = source.split(f'art_direction == "{art}"')[1].split("elif art_direction")[0]
+    assert "_palette_stops(dark, paper, accent)" in branch
+    assert "_tritone(" not in branch, "the old ramp put the accent in the midtones"

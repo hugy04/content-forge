@@ -237,10 +237,11 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             # it towards the palette rather than replacing its colour.
             out = ImageEnhance.Color(base).enhance(0.55)
             out = ImageEnhance.Contrast(out).enhance(1.18)
-            out = Image.blend(out, _tritone(out, dark, accent, paper), 0.42)
+            out = Image.blend(
+                out, _gradient_map(out, _palette_stops(dark, paper, accent)), 0.42)
 
         elif art_direction == "cinematic_render":
-            out = _tritone(base, dark, accent, paper)
+            out = _gradient_map(base, _palette_stops(dark, paper, accent))
             out = Image.blend(base, out, 0.72)
             out = _vignette(ImageEnhance.Contrast(out).enhance(1.15))
             out = _letterbox(out)
