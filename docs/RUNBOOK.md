@@ -196,6 +196,13 @@ minute to wake. Point an uptime monitor (UptimeRobot, free) at
 `https://<your-app>.onrender.com/healthz` every 5 minutes and it never sleeps.
 750 instance-hours/month covers one always-on service.
 
+**Measured latency, hosted vs local.** The four samples averaged **44s** on a
+laptop. The same pipeline on a free Render instance completed in **174s** - still
+inside the five-minute contract, but four times slower. The difference is not the
+code: it is a shared CPU, a cold start, and the 47-second Pollinations pacing that
+a single-IP free instance cannot avoid. Quoted here so the gap is a documented
+property of the deployment rather than a surprise.
+
 **Known limits of the free tier**, stated plainly:
 
 | Limit | Consequence | Production answer |
