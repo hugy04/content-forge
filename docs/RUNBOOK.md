@@ -31,7 +31,7 @@ sequence, the quality gate firing a revision on a deliberately short fixture
 draft, and artifacts written to `out/`.
 
 ```bash
-.venv/bin/python -m pytest -q      # 37 tests, same fixtures, no network
+.venv/bin/python -m pytest -q      # 128 tests, same fixtures, no network
 ```
 
 ---

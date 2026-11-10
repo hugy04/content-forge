@@ -68,7 +68,7 @@ needs prepaid credits and is billed separately from a Claude Pro subscription.
 ### Tests
 
 ```bash
-.venv/bin/python -m pytest -q      # 37 tests, no network, no key
+.venv/bin/python -m pytest -q      # 128 tests, no network, no key
 ```
 
 ---

@@ -369,13 +369,13 @@ Explicitly required by the brief.
 | Requirement (from the brief) | Where it lives | Verified by |
 |---|---|---|
 | Topic via webhook / form / API / any trigger | `forge/api/app.py`, `forge/cli.py` | 4 entry points, all in the README |
-| 500–800 word structured piece | `validators.py`, `stages/qc.py` | `test_validators.py` (8 tests) |
+| 500–800 word structured piece | `validators.py`, `stages/qc.py` | `test_validators.py` (14 tests) |
 | Relevant AI-generated image | `providers/image/`, `stages/image_prompt.py` | sample images in `samples/` |
 | Multiple content styles/formats | `diversity/taxonomy.py` — 6 styles | `test_diversity.py` |
-| Content **and visual** diversity across executions | `diversity/engine.py` | `test_diversity.py` (10 tests) |
+| Content **and visual** diversity across executions | `diversity/engine.py` | `test_diversity.py` (14 tests) |
 | End-to-end within 5 minutes | `Deadline`, the `asyncio.gather` fork | timings in every `run.json` |
-| Error handling and retry | `providers/retry.py`, `providers/throttle.py`, chain fallback | `test_resilience.py` (7), `test_throttle.py` (7) |
-| Modular, maintainable, scalable | stage modules, `Sink`/text/image provider protocols, dual run mode | 45 tests |
+| Error handling and retry | `providers/retry.py`, `providers/throttle.py`, chain fallback | `test_resilience.py` (13), `test_throttle.py` (7) |
+| Modular, maintainable, scalable | stage modules, `Sink`/text/image provider protocols, dual run mode | 128 tests |
 | Assumptions documented | §9 above | — |
 | Large-scale efficiency | §7 above | — |
 
