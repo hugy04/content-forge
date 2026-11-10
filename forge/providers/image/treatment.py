@@ -62,6 +62,31 @@ def _ramp(stops: list[tuple[int, int, int]]) -> list[int]:
     return table_r + table_g + table_b
 
 
+def _mix(a: str, b: str, t: float) -> str:
+    """Blend two hex colours; t=0 returns a, t=1 returns b."""
+    ca, cb = _rgb(a), _rgb(b)
+    return "#%02x%02x%02x" % tuple(round(x + (y - x) * t) for x, y in zip(ca, cb))
+
+
+def _palette_stops(dark: str, paper: str, accent: str) -> list[str]:
+    """Stops for a gradient map that keeps the accent an accent.
+
+    The obvious ramp is dark -> accent -> paper, and it is wrong. A photograph
+    is mostly midtones, so whatever sits in the middle becomes the colour of
+    the picture: "Ocean" has a single ember-orange accent and came back a
+    wholly orange image.
+
+    The palettes describe one dark, one light and one accent, so the body of
+    the ramp runs dark to paper through their own blend, and the accent is
+    given the top band only - the highlights, which is where a spot colour
+    belongs. Repeating `paper` weights the ramp rather than complicating the
+    interpolator: with these stops the accent occupies roughly the brightest
+    seventh of the range.
+    """
+    mid = _mix(dark, paper, 0.5)
+    return [dark, mid, paper, paper, paper, paper, _mix(paper, accent, 0.85)]
+
+
 def _gradient_map(image: Image.Image, stops: list[str]) -> Image.Image:
     """Recolour by luminance through the palette. This is what makes two art
     directions visibly different rather than subtly different."""
@@ -219,8 +244,9 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             out = _letterbox(out)
 
         elif art_direction == "risograph":
-            out = _flatten(base, 6, [dark, accent, paper])
-            out = Image.blend(out, _tritone(base, dark, accent, paper), 0.35)
+            stops = _palette_stops(dark, paper, accent)
+            out = _flatten(base, 6, stops)
+            out = Image.blend(out, _tritone(base, dark, accent, paper), 0.22)
             out = _offset_channels(out, 3)
             out = _grain(out, seed, 10)
 
@@ -228,20 +254,20 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             out = _edges(base, dark, paper)
 
         elif art_direction == "flat_vector":
-            out = _flatten(base, 7, [dark, accent, paper], keep=0.3)
+            out = _flatten(base, 7, _palette_stops(dark, paper, accent), keep=0.3)
 
         elif art_direction == "isometric_3d":
-            out = _flatten(base, 8, [dark, accent, paper], keep=0.32)
+            out = _flatten(base, 8, _palette_stops(dark, paper, accent), keep=0.32)
             out = ImageEnhance.Brightness(out).enhance(1.04)
 
         elif art_direction == "collage":
-            out = _flatten(base, 10, [dark, accent, paper], keep=0.42)
+            out = _flatten(base, 10, _palette_stops(dark, paper, accent), keep=0.42)
             out = _offset_channels(out, 3)
             out = _paper_border(out, paper, inset=26)
             out = _grain(out, seed, 6)
 
         elif art_direction == "data_abstract":
-            out = _flatten(base, 5, [dark, accent, paper])
+            out = _flatten(base, 5, _palette_stops(dark, paper, accent))
             out = _grid(out, accent)
 
         else:

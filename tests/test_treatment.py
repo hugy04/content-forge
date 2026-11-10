@@ -147,13 +147,13 @@ def test_stylised_directions_no_longer_discard_all_hue(art, levels):
     after the blend, so a per-pixel distance says nothing useful about it - its
     `keep` is covered at the `_flatten` level above.
     """
-    from forge.providers.image.treatment import _flatten
+    from forge.providers.image.treatment import _flatten, _palette_stops
     from forge.providers.image.card import PALETTE_HEX
 
     src = source()
     dark, paper, accent = PALETTE_HEX["dusk_violet"]
     out, applied = apply(src, art, "dusk_violet", seed=7)
-    ramp_only = _flatten(src, levels, [dark, accent, paper], keep=0.0)
+    ramp_only = _flatten(src, levels, _palette_stops(dark, paper, accent), keep=0.0)
 
     assert applied == art
     assert _hue_distance(out, src) < _hue_distance(ramp_only, src)
@@ -202,3 +202,31 @@ def test_an_outline_without_the_field_changes_nothing():
     from forge.pipeline.prompts import composition_for
 
     assert composition_for(_sel("environmental"), {}) == ("environmental", None)
+
+
+def test_the_accent_stays_an_accent():
+    """"Ocean" came back orange: its single ember accent sat at the midpoint
+    of the ramp, and a photograph is mostly midtones."""
+    from forge.providers.image.card import PALETTE_HEX
+    from forge.providers.image.treatment import _palette_stops, _rgb
+
+    dark, paper, accent = PALETTE_HEX["cobalt_sand"]
+    stops = _palette_stops(dark, paper, accent)
+
+    middle = _rgb(stops[len(stops) // 2])
+    assert middle == _rgb(paper), "the body of the ramp is the palette's light tone"
+    # The accent appears once, in the final stop, and nowhere else.
+    assert sum(1 for s in stops if _rgb(s) != _rgb(paper)
+               and _rgb(s) != _rgb(dark) and s != stops[1]) == 1
+
+
+def test_the_accent_only_touches_the_brightest_band():
+    from forge.providers.image.card import PALETTE_HEX
+    from forge.providers.image.treatment import _palette_stops, _ramp, _rgb
+
+    dark, paper, accent = PALETTE_HEX["cobalt_sand"]
+    table = _ramp([_rgb(s) for s in _palette_stops(dark, paper, accent)])
+    reds = table[:256]
+    # Midtone red must be near paper's, not near the orange accent's.
+    assert abs(reds[128] - _rgb(paper)[0]) < 30
+    assert reds[255] > reds[128], "highlights still warm towards the accent"

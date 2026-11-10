@@ -257,3 +257,38 @@ def test_notices_travel_in_the_summary():
     summary = ctx.summary()
     assert "notices" in summary and "warnings" in summary
     assert summary["notices"] == ctx.notices
+
+
+def test_changing_any_setting_produces_a_different_run():
+    """The regression: changing Image style re-served the cached run.
+
+    The key was built from topic + style + angle + date, which was every
+    dimension that existed when it was written. Once all six became settable,
+    four of them could be changed without changing the key, and the cached run
+    came back unchanged - indistinguishable from the setting being ignored.
+    """
+    from forge.diversity.taxonomy import DIMENSIONS
+    from forge.pipeline.context import RunContext
+
+    base = {"style": "opinion", "angle": "economics", "audience": "newcomers",
+            "art_direction": "risograph", "palette": "cobalt_sand",
+            "composition": "environmental"}
+    alternative = {"style": "guide", "angle": "risk", "audience": "builders",
+                   "art_direction": "flat_vector", "palette": "forest_clay",
+                   "composition": "close_detail"}
+
+    reference = RunContext(topic="air pollution", overrides=base).idempotency_key
+    for dimension in DIMENSIONS:
+        changed = dict(base, **{dimension: alternative[dimension]})
+        key = RunContext(topic="air pollution", overrides=changed).idempotency_key
+        assert key != reference, f"changing {dimension} did not change the key"
+
+
+def test_an_identical_request_still_shares_one_key():
+    """The point of the key: a retry must not pay for the work twice."""
+    from forge.pipeline.context import RunContext
+
+    overrides = {"style": "opinion", "palette": "cobalt_sand"}
+    a = RunContext(topic="air pollution", overrides=overrides)
+    b = RunContext(topic="Air Pollution ", overrides=dict(overrides))
+    assert a.idempotency_key == b.idempotency_key

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from forge.diversity.engine import Selection
+from forge.diversity.taxonomy import DIMENSIONS
 from forge.pipeline.normalise import normalise_topic
 
 # Repairs and diagnostics. They belong in run.json, not on the page.
@@ -146,12 +147,13 @@ class RunContext:
 
     @property
     def idempotency_key(self) -> str:
-        basis = "|".join([
-            self.topic.strip().lower(),
-            self.overrides.get("style", ""),
-            self.overrides.get("angle", ""),
-            self.created_at[:10],
-        ])
+        # Every dimension, not just the two that happened to be settable when
+        # this was written. A key that ignores an override hands back a cached
+        # run that does not honour it, which reads as the setting being
+        # dropped - and is indistinguishable from one.
+        basis = "|".join([self.topic.strip().lower()]
+                         + [self.overrides.get(dim, "") for dim in DIMENSIONS]
+                         + [self.created_at[:10]])
         return hashlib.sha256(basis.encode()).hexdigest()[:32]
 
     @property
