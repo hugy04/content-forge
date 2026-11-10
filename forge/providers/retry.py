@@ -29,6 +29,20 @@ class CircuitOpen(ProviderError):
     """The breaker is open; the call was not attempted."""
 
 
+def transport_detail(exc: BaseException) -> str:
+    """Describe a transport exception in a way that survives an empty message.
+
+    httpx's timeout exceptions carry no message, so `f"{exc}"` renders as an
+    empty string and the log line reads "transport failure: " - which says
+    only that the network was involved. The class name is the whole diagnosis
+    here (ReadTimeout vs ConnectError vs RemoteProtocolError point at very
+    different causes), so it is never dropped.
+    """
+    message = str(exc).strip()
+    name = type(exc).__name__
+    return f"{name}: {message}" if message else name
+
+
 class PermanentProviderError(ProviderError):
     """A deterministic client-side failure: retrying will fail identically.
 

@@ -6,7 +6,7 @@ import base64
 import httpx
 
 from forge.providers.image.base import ImageResult, to_png, validate_png_or_jpeg
-from forge.providers.retry import ProviderError
+from forge.providers.retry import ProviderError, transport_detail
 
 MODEL = "gemini-2.5-flash-image"
 
@@ -36,7 +36,7 @@ class GeminiImageProvider:
                     url, headers={"x-goog-api-key": self.api_key}, json=body
                 )
         except httpx.HTTPError as exc:
-            raise ProviderError(f"gemini transport error: {exc}") from exc
+            raise ProviderError(f"gemini transport error: {transport_detail(exc)}") from exc
 
         if response.status_code != 200:
             raise ProviderError(

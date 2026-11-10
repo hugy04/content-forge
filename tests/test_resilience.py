@@ -177,3 +177,23 @@ def test_pollinations_folds_oversized_seeds_into_the_api_range():
     assert MAX_SEED == 2_147_483_647
     for raw in (0, 1, MAX_SEED - 1, MAX_SEED, 4_183_850_846, 2**32 - 1):
         assert 0 <= raw % MAX_SEED <= MAX_SEED
+
+
+def test_a_timeout_is_still_identifiable_when_it_carries_no_message():
+    """Regression: a hosted failure reported only "transport failure: ".
+
+    httpx timeout exceptions stringify to an empty string, so interpolating the
+    exception alone produced a message that named the provider and nothing
+    else - enough to know the network was involved, not enough to tell a
+    connect timeout from a read timeout from a protocol error. Diagnosing the
+    first live deploy cost an extra round trip because of it.
+    """
+    import httpx
+
+    from forge.providers.retry import transport_detail
+
+    assert str(httpx.ReadTimeout("")) == "", "premise: httpx timeouts can be blank"
+    assert transport_detail(httpx.ReadTimeout("")) == "ReadTimeout"
+    assert transport_detail(httpx.ConnectTimeout("")) == "ConnectTimeout"
+    assert transport_detail(httpx.ConnectError("name resolution failed")) == (
+        "ConnectError: name resolution failed")

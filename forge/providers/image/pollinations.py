@@ -18,6 +18,7 @@ from forge.providers.retry import (
     PermanentProviderError,
     ProviderError,
     RateLimited,
+    transport_detail,
 )
 
 log = logging.getLogger("forge.image.pollinations")
@@ -53,7 +54,7 @@ class PollinationsProvider:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
                 response = await client.get(url, params=params)
         except httpx.HTTPError as exc:
-            raise ProviderError(f"pollinations transport error: {exc}") from exc
+            raise ProviderError(f"pollinations transport error: {transport_detail(exc)}") from exc
 
         if response.status_code in (402, 429):
             # The anonymous tier allows roughly one image per 45s per IP and

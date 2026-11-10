@@ -35,6 +35,7 @@ from forge.providers.retry import (
     CircuitOpen,
     ProviderError,
     retrying,
+    transport_detail,
 )
 from forge.providers.throttle import LIMITER, TooLongToWait
 from forge.providers.text.usage import Usage
@@ -251,7 +252,7 @@ class GeminiTextProvider:
                     response = await self._post(resolved, body)
                 except httpx.HTTPError as exc:
                     BREAKER.record_failure(key)
-                    raise ProviderError(f"gemini transport failure: {exc}") from exc
+                    raise ProviderError(f"gemini transport failure: {transport_detail(exc)}") from exc
 
                 if response.status_code == 400 and "thinking" in response.text.lower():
                     # This model does not take thinkingLevel. Drop it permanently

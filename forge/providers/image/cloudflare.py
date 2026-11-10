@@ -6,7 +6,7 @@ import base64
 import httpx
 
 from forge.providers.image.base import ImageResult, to_png, validate_png_or_jpeg
-from forge.providers.retry import ProviderError
+from forge.providers.retry import ProviderError, transport_detail
 
 MODEL = "@cf/black-forest-labs/flux-1-schnell"
 
@@ -33,7 +33,7 @@ class CloudflareProvider:
                     json={"prompt": prompt[:2000], "seed": seed},
                 )
         except httpx.HTTPError as exc:
-            raise ProviderError(f"cloudflare transport error: {exc}") from exc
+            raise ProviderError(f"cloudflare transport error: {transport_detail(exc)}") from exc
 
         if response.status_code != 200:
             raise ProviderError(

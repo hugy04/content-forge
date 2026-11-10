@@ -6,7 +6,7 @@ import base64
 import httpx
 
 from forge.providers.image.base import ImageResult, to_png, validate_png_or_jpeg
-from forge.providers.retry import ProviderError
+from forge.providers.retry import ProviderError, transport_detail
 
 
 def _nearest_supported_size(width: int, height: int) -> str:
@@ -39,7 +39,7 @@ class OpenAIImageProvider:
                     json=body,
                 )
         except httpx.HTTPError as exc:
-            raise ProviderError(f"openai transport error: {exc}") from exc
+            raise ProviderError(f"openai transport error: {transport_detail(exc)}") from exc
 
         if response.status_code != 200:
             raise ProviderError(
