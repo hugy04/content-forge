@@ -35,20 +35,51 @@ def test_the_form_offers_every_dimension_the_api_accepts(page):
         assert f'for="{key}"' in page, f"{key} has no label"
 
 
-@pytest.mark.parametrize("description", [
-    ANGLES["contrarian"],
-    COMPOSITIONS["close_detail"],
-    PALETTES["monochrome_pop"],
+@pytest.mark.parametrize("label", [
+    "Challenge the consensus",   # angle: contrarian
+    "Close-up",                  # composition: close_detail
+    "Black, white and blue",     # palette: monochrome_pop
+    "Risograph print",           # art_direction: risograph
 ])
-def test_each_option_carries_the_wording_the_model_is_given(page, description):
-    """The tooltip is the taxonomy's own text, so the page cannot drift from it."""
-    assert description in page
+def test_options_read_as_english_not_as_keys(page, label):
+    assert f">{label}</option>" in page
 
 
-def test_every_added_control_defaults_to_auto(page):
+def test_the_model_s_own_wording_is_not_shown_to_a_reader(page):
+    """`taxonomy.py` is written for the image prompt, not for a dropdown."""
+    assert ANGLES["contrarian"] not in page
+    assert PALETTES["monochrome_pop"] not in page
+    assert COMPOSITIONS["close_detail"] not in page
+
+
+def test_no_option_falls_back_to_a_raw_key(page):
+    """Every option in every pool has a label, so none can leak underscores."""
+    from forge.diversity.labels import LABELS
+    from forge.diversity.taxonomy import (ANGLES as A, ART_DIRECTIONS, AUDIENCES,
+                                          COMPOSITIONS as C, PALETTES as P)
+
+    pools = {"angle": A, "audience": AUDIENCES, "art_direction": ART_DIRECTIONS,
+             "palette": P, "composition": C}
+    for dimension, pool in pools.items():
+        assert set(pool) == set(LABELS[dimension]), f"{dimension} labels out of sync"
+
+
+def test_every_control_defaults_to_auto(page):
     """An untouched form behaves exactly as it did before the panel existed."""
-    assert page.count('<option value="">Auto</option>') == len(DIMENSIONS) - 1
-    assert '<option value="">Auto (rotate for diversity)</option>' in page
+    assert page.count('<option value=""') == len(DIMENSIONS)
+
+
+def test_every_select_explains_what_auto_would_do(page):
+    """So "Auto" is a described choice rather than a shrug."""
+    assert page.count("data-auto=") == len(DIMENSIONS)
+    assert "a look recent runs have not used" in page
+    assert "a format recent runs have not used" in page
+
+
+def test_every_select_has_a_guide_line(page):
+    """The description shows on the page, not only in a tooltip nobody hovers."""
+    assert page.count('<small class="guide"></small>') == len(DIMENSIONS)
+    assert "chosen for you" in page
 
 
 def test_the_stepper_names_every_pipeline_stage(page):

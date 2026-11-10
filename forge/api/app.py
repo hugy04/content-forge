@@ -26,6 +26,7 @@ from fastapi.templating import Jinja2Templates
 
 from forge.api.schemas import BatchRequest, GenerateRequest
 from forge.config import get_settings
+from forge.diversity.labels import options as dimension_options
 from forge.diversity.taxonomy import (
     ANGLES,
     ART_DIRECTIONS,
@@ -220,17 +221,27 @@ async def index(request: Request):
     settings = get_settings()
     return templates.TemplateResponse(request, "index.html", {
         "styles": {k: v.label for k, v in STYLES.items()},
+        "style_options": [(k, v.label, v.guidance.split(".")[0].rstrip() + ".")
+                          for k, v in STYLES.items()],
         "art_directions": list(ART_DIRECTIONS),
         # Every dimension the engine can choose, so the page can offer the same
         # control the API already accepts. Each description is the one the
         # prompt itself is built from - what the reader sees here is literally
         # what the model is told.
         "dimensions": [
-            ("angle", "Angle", ANGLES),
-            ("audience", "Audience", AUDIENCES),
-            ("art_direction", "Art direction", ART_DIRECTIONS),
-            ("palette", "Palette", PALETTES),
-            ("composition", "Composition", COMPOSITIONS),
+            (key, label, dimension_options(key, pool), auto_hint)
+            for key, label, pool, auto_hint in (
+                ("angle", "Angle", ANGLES,
+                 "an angle recent runs have not used"),
+                ("audience", "Written for", AUDIENCES,
+                 "a readership recent runs have not used"),
+                ("art_direction", "Image style", ART_DIRECTIONS,
+                 "a look recent runs have not used"),
+                ("palette", "Colours", PALETTES,
+                 "colours recent runs have not used"),
+                ("composition", "Framing", COMPOSITIONS,
+                 "a framing that suits the subject"),
+            )
         ],
         "mode": settings.run_mode,
         "fake": settings.fake_providers,

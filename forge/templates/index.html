@@ -38,6 +38,8 @@
     transition:transform .15s}
   details#adv[open] summary::before{transform:rotate(90deg)}
   details#adv summary:hover{color:var(--ink)}
+  .guide{display:block;font-size:11px;color:var(--dim);margin-top:5px;
+         min-height:14px;line-height:1.3}
   .dims{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
     gap:12px;margin-top:12px}
   @media (max-width:640px){.dims{grid-template-columns:1fr 1fr}}
@@ -153,33 +155,34 @@
         </div>
         <div>
           <label for="style">Format</label>
-          <select id="style" name="style">
-            <option value="">Auto (rotate for diversity)</option>
-            {% for key, label in styles.items() %}
-            <option value="{{ key }}">{{ label }}</option>
+          <select id="style" name="style" data-auto="a format recent runs have not used">
+            <option value="" title="a format recent runs have not used">Auto (rotate for diversity)</option>
+            {% for key, label, hint in style_options %}
+            <option value="{{ key }}" title="{{ hint }}">{{ label }}</option>
             {% endfor %}
           </select>
+          <small class="guide"></small>
         </div>
       </div>
       <details id="adv">
         <summary>More options <span style="opacity:.7">&mdash; angle, audience, and the image</span></summary>
         <div class="dims">
-          {% for key, label, options in dimensions %}
+          {% for key, label, options, auto_hint in dimensions %}
           <div>
             <label for="{{ key }}">{{ label }}</label>
-            <select id="{{ key }}" name="{{ key }}">
-              <option value="">Auto</option>
-              {% for value, description in options.items() %}
-              <option value="{{ value }}" title="{{ description }}">{{ value.replace('_', ' ') }}</option>
+            <select id="{{ key }}" name="{{ key }}" data-auto="{{ auto_hint }}">
+              <option value="" title="{{ auto_hint }}">Auto</option>
+              {% for value, option_label, hint in options %}
+              <option value="{{ value }}" title="{{ hint }}">{{ option_label }}</option>
               {% endfor %}
             </select>
+            <small class="guide"></small>
           </div>
           {% endfor %}
         </div>
-        <p class="hint">These six settings are what the prompts are built from.
-           Anything left on Auto is chosen by the diversity engine, which skips
-           whatever recent runs already used. Hover an option to see the exact
-           wording the model is given.</p>
+        <p class="hint">These six settings are what the piece is built from.
+           Leave any of them on Auto and the system picks one that recent runs
+           have not used.</p>
       </details>
       <button id="go" type="submit">Generate</button>
       <p class="hint">Leave everything on Auto to let the diversity engine choose a
@@ -256,6 +259,23 @@ function md(src){
     return `<p>${p}</p>`;
   }).join("");
 }
+
+// The guide line under each select: the description of whatever is chosen
+// right now, including Auto. A tooltip nobody hovers is not an explanation.
+function wireGuides(){
+  document.querySelectorAll("select[data-auto]").forEach(sel=>{
+    const line = sel.parentElement.querySelector(".guide");
+    if (!line) return;
+    const paint = ()=>{
+      const opt = sel.selectedOptions[0];
+      line.textContent = sel.value
+        ? (opt ? opt.title : "")
+        : "chosen for you \u2014 " + sel.dataset.auto;
+    };
+    sel.addEventListener("change", paint); paint();
+  });
+}
+wireGuides();
 
 const DIMENSIONS = ["style","angle","audience","art_direction",
                     "palette","composition"];
