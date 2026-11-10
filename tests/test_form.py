@@ -109,3 +109,20 @@ def test_the_stepper_has_a_failure_state(page):
     """A dropped request should show where it stopped, not just vanish."""
     assert "step.fail" in page
     assert "paintSteps(step, step)" in page
+
+
+def test_no_em_dash_reaches_the_page(page):
+    """House style, and the one place a regex over the source could not see it
+    was a JavaScript escape rather than a literal character."""
+    assert "—" not in page
+    assert "&mdash;" not in page
+    assert "\\u2014" not in page
+
+
+def test_a_format_does_not_claim_a_reading_level(page):
+    """Format sets the shape; `audience` sets who it is pitched at.
+
+    The explanatory article used to describe "an intelligent reader", which
+    read as a contradiction next to a Written for of Beginners.
+    """
+    assert "intelligent reader" not in page

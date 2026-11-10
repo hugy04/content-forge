@@ -276,7 +276,7 @@ function wireGuides(){
       const opt = sel.selectedOptions[0];
       line.textContent = sel.value
         ? (opt ? opt.title : "")
-        : "chosen for you \u2014 " + sel.dataset.auto;
+        : "chosen for you: " + sel.dataset.auto;
     };
     sel.addEventListener("change", paint); paint();
   });
@@ -329,9 +329,12 @@ form.addEventListener("submit", async (e)=>{
     clearInterval(timer); paintSteps(step, step); failed = true;
     result.innerHTML = dropped
       ? `<div class="panel err">The connection dropped after ${elapsedSecs.toFixed(0)}s.
-         This instance sleeps when idle and takes about a minute to wake, which is
-         longer than the browser will wait. It is awake now - press Generate again
-         and it should run in well under a minute.</div>`
+         ${elapsedSecs < 25
+           ? `That is too quick to be a cold start, so the free instance most
+              likely restarted mid-run. Nothing was saved. Press Generate again.`
+           : `This instance sleeps when idle and takes about a minute to wake,
+              which is longer than the browser will wait. It is awake now - press
+              Generate again and it should run in well under a minute.`}</div>`
       : `<div class="panel err">Request failed: ${esc(String(err))}</div>`;
     result.style.display = "block";
   } finally {

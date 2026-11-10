@@ -27,8 +27,9 @@ STYLES: dict[str, Style] = {
         structure=["hook", "context", "three_developments", "what_it_means", "close"],
         voice="measured, third-person, journalistic",
         guidance=(
-            "Explain the subject to an intelligent reader who has heard the term but "
-            "cannot yet say why it matters. Lead with the concrete, not the abstract."
+            "Explain how the subject works and why it matters, in the reader's own "
+            "terms. Lead with the concrete, not the abstract. Pitch the vocabulary "
+            "at the stated audience: the format sets the shape, not the reading level."
         ),
     ),
     "guide": Style(
