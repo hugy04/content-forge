@@ -297,3 +297,18 @@ def test_no_two_art_directions_collapse_into_each_other(palette):
                 too_close.append((first, second, round(apart, 1)))
 
     assert not too_close, f"indistinguishable art directions: {too_close}"
+
+
+def test_the_framing_override_is_not_explained_to_the_reader():
+    """Which composition the engine picked, and why it overrode itself, is a
+    decision nobody asked about, written in the names the code uses for its
+    own options. The reader can see the picture."""
+    from forge.pipeline.context import RunContext
+
+    ctx = RunContext(topic="brick kilns")
+    _, note = __import__("forge.pipeline.prompts", fromlist=["composition_for"]) \
+        .composition_for(_sel("hero_wide"), {"image_subject_scale": "object"})
+    ctx.warnings.append(note)
+
+    assert ctx.warnings, "the run record still explains it"
+    assert ctx.notices == [], "the page does not"

@@ -20,6 +20,10 @@ INTERNAL_WARNINGS = (
     # attached to the file. A banner above it is the page saying the same
     # thing a second time and in smaller type.
     "no generative image provider was reachable",
+    # Which framing the engine picked, and why it overrode itself, is a
+    # decision nobody asked about, explained in the names the code uses for
+    # its own options. The reader can see the picture.
+    "composition ",
     "art-direction treatment skipped",
     "salvage publish failed",
 )
