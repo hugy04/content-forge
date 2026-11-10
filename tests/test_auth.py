@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import base64
+
+import pytest
 import importlib
 
 from fastapi.testclient import TestClient
@@ -139,3 +141,31 @@ def test_signing_out_clears_the_session_and_returns_to_login(monkeypatch, tmp_pa
                       headers={"Accept": "text/html"})
     assert back.status_code == 303
     assert back.headers["location"].startswith("/login")
+
+
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_signing_out_works_whichever_verb_arrives(monkeypatch, tmp_path, method):
+    """The button posts; a reload, a back button or a bookmark gets.
+
+    Answering "Method Not Allowed" to someone trying to sign out is worse than
+    accepting the verb - this ends a session, it does not spend anything.
+    """
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    client.post("/login", data={"username": "u", "password": "p"},
+                follow_redirects=False)
+    response = getattr(client, method)("/logout", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_the_sign_out_cookie_delete_matches_how_it_was_set(monkeypatch, tmp_path):
+    """A mismatched path or flag leaves the cookie in place, and the sign-out
+    does nothing at all while appearing to work."""
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    client.post("/login", data={"username": "u", "password": "p"},
+                follow_redirects=False)
+    response = client.post("/logout", follow_redirects=False)
+    cookie = response.headers.get("set-cookie", "")
+    assert "forge_session=" in cookie
+    assert "httponly" in cookie.lower()
+    assert "samesite=lax" in cookie.lower()

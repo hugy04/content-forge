@@ -206,10 +206,22 @@ async def login_submit(request: Request):
     return response
 
 
-@app.post("/logout")
-async def logout():
+@app.api_route("/logout", methods=["GET", "POST"])
+async def logout(request: Request):
+    """Both verbs on purpose.
+
+    The button posts, which is the right way round. But a reload, a back
+    button or a bookmark arrives as a GET, and answering "Method Not Allowed"
+    to someone trying to sign out is a worse outcome than accepting the verb:
+    this ends a session, it does not spend money or destroy anything.
+    """
     response = RedirectResponse("/login", status_code=303)
-    response.delete_cookie(SESSION_COOKIE)
+    # The delete has to match how the cookie was set, or the browser keeps it
+    # and the sign-out silently does nothing.
+    response.delete_cookie(
+        SESSION_COOKIE, httponly=True, samesite="lax",
+        secure=request.url.scheme == "https",
+    )
     return response
 
 
