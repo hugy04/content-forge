@@ -197,3 +197,36 @@ def test_a_timeout_is_still_identifiable_when_it_carries_no_message():
     assert transport_detail(httpx.ConnectTimeout("")) == "ConnectTimeout"
     assert transport_detail(httpx.ConnectError("name resolution failed")) == (
         "ConnectError: name resolution failed")
+
+
+def test_a_pollinations_key_lifts_the_per_ip_pacing_floor():
+    """Pacing a keyed caller would invent a limit the service does not impose.
+
+    The anonymous tier allows one image per 45s per IP, and that floor is the
+    single largest contributor to hosted latency. A key removes the limit, so
+    continuing to pace would make the paid path as slow as the free one.
+    """
+    from tests.conftest import isolated_settings
+
+    anonymous = isolated_settings(pollinations_min_interval_seconds=47.0)
+    assert anonymous.image_min_interval("pollinations") == 47.0
+
+    keyed = isolated_settings(pollinations_min_interval_seconds=47.0,
+                              pollinations_token="pk-whatever")
+    assert keyed.image_min_interval("pollinations") == 0.0
+
+    # Other providers are unaffected either way.
+    assert keyed.image_min_interval("card") == 0.0
+
+
+def test_the_watermark_parameter_is_only_sent_with_a_key():
+    """`nologo` is ignored without a key, so sending it anonymously is noise.
+
+    Measured 10 Nov 2026: the anonymous tier accepts `nologo=true` and returns
+    a watermarked image anyway. The watermark is the provider's attribution for
+    a free service and is left intact; a key removes it legitimately.
+    """
+    from forge.providers.image.pollinations import PollinationsProvider
+
+    assert PollinationsProvider().token == ""
+    assert PollinationsProvider(token="pk-abc").token == "pk-abc"

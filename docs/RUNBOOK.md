@@ -232,7 +232,7 @@ about the tier rather than a defect in the pipeline, and the run says so.
 | No Redis | runs `inline`, not `queue` | managed Redis + worker service |
 | Cold start ~60s | first request after idle is slow | uptime ping, or a paid instance |
 | Model availability varies by hour | auto-resolution can fall forward through two 503s before a model answers, and those seconds come out of the run budget | `GEMINI_MODEL` is pinned on the hosted service; `TEXT_TIMEOUT_SECONDS=45` bounds what one unavailable model can cost |
-| One shared egress IP | free Pollinations allows one image per 45s *per IP*, so concurrent visitors queue behind the pacer and some runs land on the card | a keyed image provider, which is per-account rather than per-IP |
+| One shared egress IP | free Pollinations allows one image per 45s *per IP*, so concurrent visitors queue behind the pacer and some runs land on the card | set `POLLINATIONS_TOKEN` (free at <https://enter.pollinations.ai>): the limit becomes per-account, and the attribution watermark goes too |
 
 ### Alternative: a container
 

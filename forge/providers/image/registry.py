@@ -29,7 +29,8 @@ def build_provider(name: str, settings: Settings, *, title: str = "",
                    style_label: str = "", palette: str = "ink_amber"):
     if name == "pollinations":
         from forge.providers.image.pollinations import PollinationsProvider
-        return PollinationsProvider(model=settings.pollinations_model)
+        return PollinationsProvider(model=settings.pollinations_model,
+                                    token=settings.pollinations_token)
     if name == "cloudflare":
         from forge.providers.image.cloudflare import CloudflareProvider
         return CloudflareProvider(settings.cloudflare_account_id, settings.cloudflare_api_token)

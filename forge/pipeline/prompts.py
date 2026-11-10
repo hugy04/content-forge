@@ -97,8 +97,16 @@ number, never with "In today's fast-paced world".
 - Section word budgets must sum to within 20 words of the requested target.
 - Each section's points must be assertions the writer can defend, not headings in \
 disguise.
-- The image_brief describes a single concrete scene or object that carries the \
-piece's meaning. It never describes charts, text, or a collage of concepts.
+- The image_brief describes a single concrete scene or object drawn from the \
+subject's own world - its setting, its tools, its materials. A piece about \
+football gets a floodlit stand, an empty dugout, a tactics board; a piece about \
+battery recycling gets cells, racking, a sorting line. A desk with a notebook is \
+a failure: it would illustrate any article ever written equally badly, which \
+means it illustrates none of them.
+- The image_brief never describes charts, text, or a collage of concepts, and \
+never a real, identifiable person. A synthetic photograph of someone real, \
+attached to an article about them, is a liability whatever the article says - \
+and the model renders recognisable people badly in any case.
 
 You respect the requested format, voice and angle exactly. They are not suggestions."""
 
@@ -195,6 +203,8 @@ then the medium and style tokens you were given.
 car" beats "automotive innovation".
 - Never ask for text, words, numbers, labels, logos or UI in the image. Models \
 render them as garbage.
+- Never name or describe a real, identifiable person, even if the brief does. \
+Swap them for the role, the setting or the object they are associated with.
 - Keep the prompt under 90 words.
 - alt_text is a plain, literal description of the resulting image for a screen \
 reader. One sentence, no style jargon."""

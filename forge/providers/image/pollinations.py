@@ -36,23 +36,31 @@ class PollinationsProvider:
     name = "pollinations"
     generated = True
 
-    def __init__(self, model: str = "flux"):
+    def __init__(self, model: str = "flux", token: str = ""):
         self.model = model
+        self.token = token
 
     async def generate(self, *, prompt: str, negative: str, width: int, height: int,
                        seed: int, timeout: float) -> ImageResult:
         url = ENDPOINT.format(prompt=urllib.parse.quote(prompt[:1800], safe=""))
-        # Deliberately minimal. `nologo=true` and `safe=false` are tier-gated and
-        # return HTTP 402 on the anonymous tier, so sending them makes the provider
-        # fail far more often than it succeeds. The free tier stamps a small
-        # attribution watermark; that is the provider's branding and is left intact.
+        # Anonymously the service stamps an attribution watermark and allows one
+        # image per 45s per IP. `nologo` is accepted but ignored without a key
+        # (measured 10 Nov 2026 - it does not 402, it simply has no effect), so
+        # the watermark stays: it is the provider's attribution for a service
+        # given away free, and cropping it off would be evading the terms rather
+        # than meeting them. A key from enter.pollinations.ai lifts both limits
+        # legitimately, and is the only reason `nologo` is sent at all.
         params = {
             "width": width, "height": height, "seed": seed % MAX_SEED,
             "model": self.model,
         }
+        headers = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+            params["nologo"] = "true"
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-                response = await client.get(url, params=params)
+                response = await client.get(url, params=params, headers=headers)
         except httpx.HTTPError as exc:
             raise ProviderError(f"pollinations transport error: {transport_detail(exc)}") from exc
 

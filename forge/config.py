@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     image_height: int = 720
     image_timeout_seconds: int = 90
     pollinations_model: str = "flux"
+    # Free to obtain at https://enter.pollinations.ai. Without it the service
+    # watermarks the image and allows one every 45s per IP; with it, neither.
+    # The 45s floor is the single largest contributor to hosted latency, so this
+    # is worth more than the watermark it also removes.
+    pollinations_token: str = ""
     # Known per-IP floors, in seconds. Pollinations' anonymous tier is ~1 image
     # per 45s; a little headroom avoids tripping it on the boundary.
     pollinations_min_interval_seconds: float = 47.0
@@ -109,6 +114,10 @@ class Settings(BaseSettings):
         return self
 
     def image_min_interval(self, provider: str) -> float:
+        # A keyed caller is not on the anonymous per-IP floor, so pacing it
+        # would be inventing a limit the service does not impose.
+        if provider == "pollinations" and self.pollinations_token:
+            return 0.0
         return {
             "pollinations": self.pollinations_min_interval_seconds,
             "gemini": self.gemini_image_min_interval_seconds,

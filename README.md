@@ -20,7 +20,7 @@ Built for the Case 2 assignment: an AI-powered content generation workflow.
 | **Variety** | 115,200 combinations across 6 dimensions, with cooldown + recency weighting |
 | **Quality** | 9 deterministic checks, bounded self-repair loop |
 | **Runs as** | FastAPI inline (zero infra) or Celery + Redis (scale) |
-| **Tests** | 124, all offline — no API key needed |
+| **Tests** | 126, all offline — no API key needed |
 
 ---
 
@@ -137,6 +137,7 @@ Everything is env-overridable; see `.env.example` for the full list.
 | `BASIC_AUTH_USER` | — | set both to gate the whole surface; blank leaves it open |
 | `BASIC_AUTH_PASS` | — | `/healthz` stays open so uptime monitors need no credentials |
 | `IMAGE_PROVIDERS` | `gemini,pollinations,card` | ordered fallback chain |
+| `POLLINATIONS_TOKEN` | — | free at enter.pollinations.ai; removes the watermark **and** the 1-image-per-45s floor |
 | `TARGET_WORDS_MIN` / `_MAX` | `500` / `800` | the enforced contract |
 | `MAX_REVISIONS` | `2` | bound on the repair loop |
 | `DEADLINE_SECONDS` | `300` | per-run wall-clock budget |
