@@ -29,6 +29,11 @@ from forge.providers.image.card import PALETTE_HEX
 
 log = logging.getLogger("forge.image.treatment")
 
+# Line-art constants, tuned against real renders rather than guessed.
+BANDS = 6              # tonal regions kept before edges are found
+EDGE_THRESHOLD = 18    # below this a boundary is noise, not a line
+STROKE_WEIGHT = 5      # dilation, in pixels, of the finished line
+
 
 def _rgb(value: str) -> tuple[int, int, int]:
     value = value.lstrip("#")
@@ -148,24 +153,30 @@ def _paper_border(image: Image.Image, paper: str, inset: int = 26) -> Image.Imag
 
 
 def _edges(image: Image.Image, ink: str, paper: str) -> Image.Image:
-    """Line art: CONTOUR already returns dark strokes on white, which survives
-    a soft threshold. FIND_EDGES needs a hard threshold and erases thin work."""
-    grey = ImageOps.grayscale(image)
-    # Denoise hard before edge detection. CONTOUR amplifies sensor noise into
-    # a field of speckle that reads as dirt rather than draughtsmanship, and no
-    # amount of thresholding afterwards separates specks from strokes.
-    grey = grey.filter(ImageFilter.MedianFilter(5))
-    grey = grey.filter(ImageFilter.GaussianBlur(1.4))
-    grey = ImageOps.autocontrast(grey, cutoff=3)
+    """Line art from the edges of a *posterised* image, not of the photo.
 
-    lines = grey.filter(ImageFilter.CONTOUR)
-    lines = ImageOps.autocontrast(lines, cutoff=1)
-    lines = lines.point(lambda v: 0 if v < 165 else 255)
-    # Median on the thresholded image erases isolated pixels while leaving
-    # connected strokes intact; MinFilter then restores stroke weight.
-    lines = lines.filter(ImageFilter.MedianFilter(3))
-    lines = lines.filter(ImageFilter.MinFilter(3))
-    return ImageOps.colorize(lines, black=_rgb(ink), white=_rgb(paper))
+    Running an edge filter straight at a photograph traces its texture: a stone
+    countertop or a bit of sensor grain becomes a field of speckle that reads
+    as dirt rather than draughtsmanship, and no threshold afterwards separates
+    specks from strokes. Banding the luminance first collapses the frame into a
+    handful of flat regions, so the only edges left to find are the boundaries
+    between them - which is what a person drawing the scene would put down.
+    """
+    grey = ImageOps.grayscale(image).filter(ImageFilter.MedianFilter(5))
+    grey = grey.filter(ImageFilter.GaussianBlur(3.0))
+    grey = ImageOps.autocontrast(grey, cutoff=4)
+
+    step = max(1, 256 // BANDS)
+    banded = grey.point(lambda v: min(255, (v // step) * step))
+    # Median again, now on the bands: removes single-pixel islands that would
+    # each become their own closed contour.
+    banded = banded.filter(ImageFilter.MedianFilter(5))
+
+    lines = banded.filter(ImageFilter.FIND_EDGES)
+    lines = lines.point(lambda v: 255 if v > EDGE_THRESHOLD else 0)
+    lines = lines.filter(ImageFilter.MaxFilter(STROKE_WEIGHT))  # stroke weight
+    return ImageOps.colorize(ImageOps.invert(lines), black=_rgb(ink),
+                             white=_rgb(paper))
 
 
 def _offset_channels(image: Image.Image, shift: int = 4) -> Image.Image:
