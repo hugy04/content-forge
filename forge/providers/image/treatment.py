@@ -100,8 +100,12 @@ def _duotone(image: Image.Image, dark: str, light: str) -> Image.Image:
     return _gradient_map(image, [dark, light])
 
 
-def _tritone(image: Image.Image, dark: str, mid: str, light: str) -> Image.Image:
-    return _gradient_map(image, [dark, mid, light])
+# `_tritone(dark, accent, paper)` used to live here. It was removed rather
+# than left unused: it names the accent as the midtone, which is the bug this
+# file has now had twice, and a helper that makes the wrong thing easy to
+# write is how it came back the second time. Every direction goes through
+# `_palette_stops`, and the tests below enforce that for the ones that exist
+# and the ones that do not exist yet.
 
 
 def _grain(image: Image.Image, seed: int, strength: int = 14) -> Image.Image:

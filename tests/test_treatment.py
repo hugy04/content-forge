@@ -332,3 +332,64 @@ def test_the_photographic_directions_use_the_same_ramp_as_everything_else(art):
     branch = source.split(f'art_direction == "{art}"')[1].split("elif art_direction")[0]
     assert "_palette_stops(dark, paper, accent)" in branch
     assert "_tritone(" not in branch, "the old ramp put the accent in the midtones"
+
+
+# --- the accent is never the colour of the picture -------------------------
+
+def _photographic_source() -> Image.Image:
+    """A gradient plus a bright patch: mostly midtones, like a photograph."""
+    img = Image.new("RGB", (120, 68))
+    pixels = img.load()
+    for x in range(120):
+        for y in range(68):
+            v = 200 if x >= 100 else 90 + x
+            pixels[x, y] = (v, v, v)
+    return img
+
+
+def _off_dark_paper_line(colour, dark, paper):
+    from forge.providers.image.treatment import _mix, _rgb
+
+    return min(_distance(colour, _rgb(_mix(dark, paper, t / 40))) for t in range(41))
+
+
+@pytest.mark.parametrize("art", list(ART_DIRECTIONS))
+@pytest.mark.parametrize("palette", list(PALETTES))
+def test_no_direction_and_palette_renders_as_its_accent(art, palette):
+    """Every combination, so no direction can be left behind again.
+
+    This bug shipped twice: once across six directions, then again in the two
+    that were deliberately excluded because they blend with the photograph.
+    "Forest" - green, terracotta, cream, brass - came back sepia, because
+    brass sat where the greens should have been. A photograph is mostly
+    midtones, so whatever the ramp puts in the middle becomes the picture.
+    """
+    from forge.providers.image.card import PALETTE_HEX
+    from forge.providers.image.treatment import _rgb
+
+    dark, paper, accent = PALETTE_HEX[palette]
+    out, _ = apply(_photographic_source(), art, palette, seed=5)
+    pixels = list(out.convert("RGB").getdata())
+    mean = tuple(sum(p[i] for p in pixels) // len(pixels) for i in range(3))
+
+    assert _off_dark_paper_line(mean, dark, paper) < _distance(mean, _rgb(accent)), (
+        f"{art} + {palette} averages {mean}, nearer its accent than its own "
+        f"dark and light tones")
+
+
+def test_every_branch_goes_through_the_one_ramp():
+    """A direction added later cannot quietly reintroduce the old shape."""
+    import inspect
+
+    from forge.providers.image import treatment
+
+    source = inspect.getsource(treatment.apply)
+    assert "_tritone" not in source, "the helper that named the accent as midtone"
+    assert "[dark, accent, paper]" not in source, "the ramp it used to build"
+
+    for art in ART_DIRECTIONS:
+        if art == "line_illustration":
+            continue          # two inks by definition: ink on paper, no ramp
+        branch = source.split(f'art_direction == "{art}"')[1]
+        branch = branch.split("elif art_direction")[0]
+        assert "_palette_stops(" in branch, f"{art} does not use the shared ramp"
