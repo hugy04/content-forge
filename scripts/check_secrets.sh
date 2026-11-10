@@ -18,6 +18,7 @@ PATTERNS=(
   'AIza[A-Za-z0-9_-]{30,}'         # Google, legacy format
   'AQ\.[A-Za-z0-9_-]{30,}'         # Google, current AI Studio format
   'sk-[A-Za-z0-9]{32,}'            # OpenAI
+  'sk_[A-Za-z0-9]{24,}'            # Pollinations, Stripe-style underscore keys
   'AKIA[0-9A-Z]{16}'               # AWS access key id
   'ghp_[A-Za-z0-9]{36}'            # GitHub PAT
 )

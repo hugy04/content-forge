@@ -68,10 +68,12 @@ class Settings(BaseSettings):
     image_height: int = 720
     image_timeout_seconds: int = 90
     pollinations_model: str = "flux"
-    # Free to obtain at https://enter.pollinations.ai. Without it the service
-    # watermarks the image and allows one every 45s per IP; with it, neither.
-    # The 45s floor is the single largest contributor to hosted latency, so this
-    # is worth more than the watermark it also removes.
+    # Free to obtain at https://enter.pollinations.ai, but measured 10 Nov 2026:
+    # a key with no pollen balance changes nothing observable - the watermark
+    # stays and the per-IP floor still applies. It is wired up because an account
+    # with pollen does get unmetered access, and because sending it costs
+    # nothing; it is not a fix for either limit on a zero balance. Set
+    # POLLINATIONS_MIN_INTERVAL_SECONDS=0 only if your account really is unmetered.
     pollinations_token: str = ""
     # Known per-IP floors, in seconds. Pollinations' anonymous tier is ~1 image
     # per 45s; a little headroom avoids tripping it on the boundary.
@@ -114,10 +116,14 @@ class Settings(BaseSettings):
         return self
 
     def image_min_interval(self, provider: str) -> float:
-        # A keyed caller is not on the anonymous per-IP floor, so pacing it
-        # would be inventing a limit the service does not impose.
-        if provider == "pollinations" and self.pollinations_token:
-            return 0.0
+        # Deliberately not inferred from whether a token is set. Measured
+        # 10 Nov 2026: a Pollinations key with no pollen balance lifts neither
+        # the watermark nor the 1-image-per-45s floor - two keyed requests back
+        # to back still return 402 FREE_LIMIT. Treating a key as proof of
+        # unlimited access would stop the pacer while the limit still applied,
+        # turning polite queueing into failed runs. An operator whose account
+        # really is unmetered sets POLLINATIONS_MIN_INTERVAL_SECONDS=0 and says
+        # so explicitly.
         return {
             "pollinations": self.pollinations_min_interval_seconds,
             "gemini": self.gemini_image_min_interval_seconds,

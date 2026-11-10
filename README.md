@@ -137,7 +137,7 @@ Everything is env-overridable; see `.env.example` for the full list.
 | `BASIC_AUTH_USER` | — | set both to gate the whole surface; blank leaves it open |
 | `BASIC_AUTH_PASS` | — | `/healthz` stays open so uptime monitors need no credentials |
 | `IMAGE_PROVIDERS` | `gemini,pollinations,card` | ordered fallback chain |
-| `POLLINATIONS_TOKEN` | — | free at enter.pollinations.ai; removes the watermark **and** the 1-image-per-45s floor |
+| `POLLINATIONS_TOKEN` | — | free at enter.pollinations.ai; only lifts the watermark and the per-IP floor on an account with a pollen balance — a key alone changes neither |
 | `TARGET_WORDS_MIN` / `_MAX` | `500` / `800` | the enforced contract |
 | `MAX_REVISIONS` | `2` | bound on the repair loop |
 | `DEADLINE_SECONDS` | `300` | per-run wall-clock budget |

@@ -199,12 +199,14 @@ def test_a_timeout_is_still_identifiable_when_it_carries_no_message():
         "ConnectError: name resolution failed")
 
 
-def test_a_pollinations_key_lifts_the_per_ip_pacing_floor():
-    """Pacing a keyed caller would invent a limit the service does not impose.
+def test_pacing_is_not_switched_off_just_because_a_key_is_present():
+    """Measured 10 Nov 2026: a key alone lifts nothing.
 
-    The anonymous tier allows one image per 45s per IP, and that floor is the
-    single largest contributor to hosted latency. A key removes the limit, so
-    continuing to pace would make the paid path as slow as the free one.
+    Two keyed requests back to back still returned 402 FREE_LIMIT - the
+    unmetered tier needs a pollen balance, not merely a key. An earlier version
+    of this code inferred "has token, therefore unlimited" and stopped pacing,
+    which would have turned polite queueing into failed runs. Capability is
+    configured, never guessed.
     """
     from tests.conftest import isolated_settings
 
@@ -212,11 +214,14 @@ def test_a_pollinations_key_lifts_the_per_ip_pacing_floor():
     assert anonymous.image_min_interval("pollinations") == 47.0
 
     keyed = isolated_settings(pollinations_min_interval_seconds=47.0,
-                              pollinations_token="pk-whatever")
-    assert keyed.image_min_interval("pollinations") == 0.0
+                              pollinations_token="sk_whatever")
+    assert keyed.image_min_interval("pollinations") == 47.0, (
+        "a key is not evidence that the per-IP limit has been lifted")
 
-    # Other providers are unaffected either way.
-    assert keyed.image_min_interval("card") == 0.0
+    # An operator who knows their account is unmetered says so explicitly.
+    unmetered = isolated_settings(pollinations_min_interval_seconds=0.0,
+                                  pollinations_token="sk_whatever")
+    assert unmetered.image_min_interval("pollinations") == 0.0
 
 
 def test_the_watermark_parameter_is_only_sent_with_a_key():
