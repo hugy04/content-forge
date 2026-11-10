@@ -7,6 +7,8 @@ generic shape is what lets Zapier/Make/a CMS call this without a custom adapter.
 """
 from __future__ import annotations
 
+import json
+
 import asyncio
 import base64
 import hashlib
@@ -26,6 +28,7 @@ from fastapi.templating import Jinja2Templates
 
 from forge.api.schemas import BatchRequest, GenerateRequest
 from forge.config import get_settings
+from forge.diversity.labels import describe
 from forge.diversity.labels import options as dimension_options
 from forge.diversity.taxonomy import (
     ANGLES,
@@ -223,6 +226,17 @@ async def index(request: Request):
         "styles": {k: v.label for k, v in STYLES.items()},
         "style_options": [(k, v.label, v.guidance.split(".")[0].rstrip() + ".")
                           for k, v in STYLES.items()],
+        # The result chips read from this too, so a run reports the same words
+        # the form offered. Showing "oxblood_stone" to someone who picked
+        # "Clay" makes it look as though the choice was ignored.
+        "label_map": json.dumps({
+            "style": {k: v.label for k, v in STYLES.items()},
+            **{dim: {k: describe(dim, k)[0] for k in pool}
+               for dim, pool in (("angle", ANGLES), ("audience", AUDIENCES),
+                                 ("art_direction", ART_DIRECTIONS),
+                                 ("palette", PALETTES),
+                                 ("composition", COMPOSITIONS))},
+        }),
         "art_directions": list(ART_DIRECTIONS),
         # Every dimension the engine can choose, so the page can offer the same
         # control the API already accepts. Each description is the one the

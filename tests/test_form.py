@@ -167,3 +167,29 @@ def test_no_jargon_reaches_the_dropdown(page, jargon):
 def test_the_list_format_says_it_is_a_list(page):
     """Otherwise it is indistinguishable from the explanatory article."""
     assert "numbered items" in page
+
+
+def test_the_result_reports_choices_in_the_words_the_form_offered(page):
+    """Picking "Clay" and being told "oxblood_stone" looks like being ignored."""
+    import json
+    import re
+
+    labels = json.loads(re.search(r"const LABELS = (\{.*?\});", page, re.S).group(1))
+    assert labels["palette"]["oxblood_stone"] == "Clay"
+    assert labels["angle"]["economics"] == "Money"
+    assert labels["audience"]["newcomers"] == "Beginners"
+    assert labels["art_direction"]["risograph"] == "Poster print"
+    assert labels["style"]["opinion"] == "Argued opinion piece"
+
+
+def test_the_label_map_covers_every_dimension(page):
+    import json
+    import re
+
+    labels = json.loads(re.search(r"const LABELS = (\{.*?\});", page, re.S).group(1))
+    assert set(labels) == set(DIMENSIONS)
+
+
+def test_the_result_shows_the_framing_it_used(page):
+    """Image distance is a setting now, so a run has to report it back."""
+    assert 'label("composition", sel.composition)' in page
