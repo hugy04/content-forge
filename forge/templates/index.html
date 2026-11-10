@@ -65,9 +65,11 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>content-forge</h1>
-    <span class="tag">{{ mode }} mode</span>
-    <span class="tag">images: {{ image_chain }}</span>
+    <h1>Create content</h1>
+    {# The run mode and image chain are operator facts, not reader facts: they
+       belong on /healthz, where an uptime monitor can read them, rather than on
+       a page whose job is to take a topic. The fixtures badge stays, because a
+       page serving synthetic output must say so. #}
     {% if fake %}<span class="tag">fixtures</span>{% endif %}
   </header>
   <p class="lede">A topic goes in. A 500&ndash;800 word piece and a matching
