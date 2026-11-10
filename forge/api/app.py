@@ -197,5 +197,6 @@ async def healthz():
     settings = get_settings()
     return {"ok": True, "mode": settings.run_mode,
             "fake_providers": settings.fake_providers,
-            "text_provider_configured": bool(settings.anthropic_api_key) or settings.fake_providers,
+            "text_provider": settings.text_provider,
+            "text_provider_configured": settings.text_provider_configured,
             "image_chain": settings.image_provider_chain}

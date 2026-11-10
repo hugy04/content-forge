@@ -121,3 +121,41 @@ async def test_the_recorded_duration_stops_when_the_run_does(deps):
 
     assert ctx.deadline.elapsed == first, "the clock kept running after the run"
     assert abs(recorded - first) < 0.01
+
+
+def test_the_health_check_asks_about_the_active_text_provider():
+    """Regression: the hosted deploy reported a healthy service as broken.
+
+    `/healthz` checked `anthropic_api_key` regardless of which backend was
+    selected. On the Gemini default - the shipped configuration - that key is
+    deliberately empty, so a correctly configured instance advertised itself as
+    unconfigured, and the obvious "fix" is to paste a key the code never reads.
+    """
+    from tests.conftest import isolated_settings
+
+    gemini = isolated_settings(text_provider="gemini", gemini_api_key="g-key")
+    assert gemini.text_provider_key == "g-key"
+    assert gemini.text_provider_configured is True
+
+    # The Anthropic key being blank must not make the Gemini path look broken.
+    assert gemini.anthropic_api_key == ""
+
+    claude = isolated_settings(text_provider="claude", anthropic_api_key="a-key")
+    assert claude.text_provider_key == "a-key"
+    assert claude.text_provider_configured is True
+
+    neither = isolated_settings(text_provider="gemini")
+    assert neither.text_provider_configured is False
+
+    # Fixture mode needs no key at all - that is the whole point of it.
+    offline = isolated_settings(text_provider="gemini", fake_providers=True)
+    assert offline.text_provider_configured is True
+
+
+def test_an_unknown_text_provider_reports_unconfigured_rather_than_crashing():
+    """A typo in TEXT_PROVIDER should surface as a health signal, not a 500."""
+    from tests.conftest import isolated_settings
+
+    bogus = isolated_settings(text_provider="gemeni", gemini_api_key="g-key")
+    assert bogus.text_provider_key == ""
+    assert bogus.text_provider_configured is False

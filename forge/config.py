@@ -108,6 +108,24 @@ class Settings(BaseSettings):
         return (self.price_input_per_mtok, self.price_output_per_mtok)
 
     @property
+    def text_provider_key(self) -> str:
+        """The API key the *active* text provider will actually use.
+
+        Asking the provider-agnostic question in one place keeps health checks
+        and diagnostics honest: a check hard-coded to one vendor's key reports
+        a healthy service as misconfigured the moment the backend is switched,
+        which is exactly what happened on the first hosted deploy.
+        """
+        return {
+            "gemini": self.gemini_api_key,
+            "claude": self.anthropic_api_key,
+        }.get(self.text_provider, "")
+
+    @property
+    def text_provider_configured(self) -> bool:
+        return self.fake_providers or bool(self.text_provider_key)
+
+    @property
     def image_provider_chain(self) -> list[str]:
         return [p.strip() for p in self.image_providers.split(",") if p.strip()]
 
