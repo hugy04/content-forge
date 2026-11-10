@@ -46,6 +46,21 @@ cat > "$dest/SUBMISSION.md" <<'INNER'
 | 4. Sample outputs (4 topics) | `samples/` - see `samples/README.md` |
 | 5. Demo video | linked in the covering mail; script in `docs/DEMO_SCRIPT.md` |
 
+## Three ways to look at it, in increasing effort
+
+**1. Run it yourself, no setup** - a deployed instance, no install, no key:
+
+> https://content-forge-qcpd.onrender.com
+> username `tekion`, password `test@123`
+
+It sleeps when idle, so the first request takes about a minute to wake. Every
+later one finishes in well under the five-minute budget.
+
+**2. Read it** - https://github.com/hugy04/content-forge, same contents as this
+archive, with the commit history.
+
+**3. Run it locally** - the quickstart below.
+
 **Runs with no API key.** `FAKE_PROVIDERS=1` exercises the whole pipeline with
 no network and no credentials, which is also how the test suite runs:
 
