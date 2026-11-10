@@ -149,9 +149,23 @@ def test_a_dropped_connection_retries_itself(page):
     assert "waitForWake" in page
 
 
-def test_only_a_transport_failure_is_retried(page):
-    """An API error has a response and must be shown, not retried in silence."""
-    assert "if (!(err instanceof TypeError) || attempt >= MAX_ATTEMPTS) throw err;" in page
+def test_only_a_transient_failure_is_retried(page):
+    """An API error has a response and must be shown, not retried in silence.
+
+    A gateway answering for a restarting server counts as transient: it was
+    reaching the reader as Safari's "The string did not match the expected
+    pattern", which explains nothing and was never retried because a
+    SyntaxError is not a TypeError.
+    """
+    assert "err instanceof Transient || err instanceof TypeError" in page
+    assert "if (!transient || attempt >= MAX_ATTEMPTS) throw err;" in page
+
+
+def test_a_non_json_reply_is_read_as_text_first(page):
+    """Calling .json() on an HTML error page throws, and the throw is useless."""
+    assert "const body = await r.text();" in page
+    assert "try { data = JSON.parse(body); }" in page
+    assert "the server answered ${r.status} while restarting" in page
 
 
 def test_the_retry_waits_for_the_instance_before_spending_an_attempt(page):

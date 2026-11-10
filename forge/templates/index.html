@@ -398,14 +398,36 @@ const DIMENSIONS = ["style","angle","audience","art_direction",
 // Without that key this would be a duplicate-work bug rather than a fix.
 const MAX_ATTEMPTS = 3;
 
-function post(url, payload){
-  return fetch(url, {
-    method:"POST", headers:{"Content-Type":"application/json"}, body: payload
-  }).then(async r => {
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.detail || `request failed (${r.status})`);
-    return data;
-  });
+// Anything worth trying again: the socket going away, or a gateway answering
+// for a server that could not.
+class Transient extends Error {}
+
+async function post(url, payload){
+  let r;
+  try {
+    r = await fetch(url, {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: payload
+    });
+  } catch (err) {
+    throw new Transient("the connection dropped");   // TypeError from fetch
+  }
+
+  // Read as text first. A gateway standing in for a server that is restarting
+  // answers with an HTML page, and calling .json() on that throws Safari's
+  // "The string did not match the expected pattern" - which tells a reader
+  // nothing and, being a SyntaxError, was never retried.
+  const body = await r.text();
+  let data = null;
+  try { data = JSON.parse(body); } catch (_) { /* not ours */ }
+
+  if (data === null) {
+    if (r.status >= 500 || r.status === 0) {
+      throw new Transient(`the server answered ${r.status} while restarting`);
+    }
+    throw new Error(`unexpected reply from the server (${r.status})`);
+  }
+  if (!r.ok) throw new Error(data.detail || `request failed (${r.status})`);
+  return data;
 }
 
 // Wait for the instance to answer again before spending the retry on a socket
@@ -427,7 +449,8 @@ async function submitWithRetry(payload, url, onRetry){
     } catch (err) {
       // Only a transport failure is worth retrying. A real API error has a
       // response and should be shown, not silently attempted again.
-      if (!(err instanceof TypeError) || attempt >= MAX_ATTEMPTS) throw err;
+      const transient = err instanceof Transient || err instanceof TypeError;
+      if (!transient || attempt >= MAX_ATTEMPTS) throw err;
       elapsed.textContent = `connection lost - reconnecting (attempt ${attempt+1} of ${MAX_ATTEMPTS})`;
       await waitForWake(75000);
       // The pipeline restarts, so the markers do. The elapsed clock does not:
@@ -471,7 +494,7 @@ function wireRevise(runId){
     } catch(err){
       const note = document.createElement("p");
       note.className = "hint err";
-      note.textContent = err instanceof TypeError
+      note.textContent = (err instanceof Transient || err instanceof TypeError)
         ? "The connection dropped three times. The free instance is being "
           + "recycled; give it a moment and press Revise again - the piece "
           + "above is untouched."
@@ -524,7 +547,7 @@ form.addEventListener("submit", async (e)=>{
     // "TypeError: Load failed" to someone who just wanted an article is not
     // an error message, it is a stack trace with the context removed.
     const elapsedSecs = (Date.now() - tTotal) / 1000;
-    const dropped = err instanceof TypeError;
+    const dropped = err instanceof Transient || err instanceof TypeError;
     clearInterval(timer); paintSteps(step, step); failed = true;
     result.innerHTML = dropped
       ? `<div class="panel err">The connection dropped after ${elapsedSecs.toFixed(0)}s.
