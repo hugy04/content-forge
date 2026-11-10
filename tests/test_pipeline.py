@@ -213,3 +213,18 @@ async def test_the_image_carries_a_visible_caption_as_well_as_alt_text(deps):
     assert alt, "the pipeline should always produce alt text"
     assert f"![{alt}](image.png)" in markdown, "alt text belongs on the image"
     assert f"*{alt}*" in markdown, "and the same line should render as a caption"
+
+
+async def test_the_markdown_is_downloadable_even_when_the_image_is_missing(deps):
+    """The page used to derive the .md URL by editing the image URL.
+
+    That breaks precisely when a run has no image - the degraded case whose
+    text a reader most wants to keep - so the sink states both paths.
+    """
+    ctx = await generate("A topic for the download links", deps=deps)
+    local = ctx.artifacts["local"]
+
+    assert local["markdown_url_path"].endswith("/content.md")
+    assert local["markdown_url_path"].startswith("/artifacts/")
+    # Independent of whether an image was produced.
+    assert "image.png" not in local["markdown_url_path"]

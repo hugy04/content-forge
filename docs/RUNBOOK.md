@@ -216,6 +216,16 @@ than stored, so changing the password invalidates every cookie already issued.
 a gated deployment does not look permanently down. Leave both variables blank and
 the app is open, which is what local development and the test suite want.
 
+**Getting a result out of the page.** Each finished run offers *Save as PDF*,
+*Download .md* and *Download image*. The PDF route is the browser's own print
+dialog with a print stylesheet, so there is no server-side renderer and no
+bundled fonts to install; what prints is the piece, not the form and progress
+chrome around it. There is deliberately no share link: on the free tier both the
+artifacts and the run database live in `/tmp`, so a permalink would stop
+resolving at the next restart, and a link that breaks is worse than no link.
+With a disk and a real database behind it, `/v1/runs/{id}` is already the
+permalink.
+
 **When the budget runs out.** The five-minute limit is enforced, not hoped for:
 a stage that cannot finish in the time left refuses to start rather than
 returning something half-written. What it does *not* do any more is throw the

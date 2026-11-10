@@ -78,4 +78,9 @@ class LocalSink:
             "image": str(folder / "image.png") if ctx.image is not None else None,
             "run_json": str(folder / "run.json"),
             "url_path": f"/artifacts/{folder.name}/image.png" if ctx.image else None,
+            # Stated rather than derived. The page used to build this by
+            # replacing "image.png" in the image URL, which breaks for a run
+            # that has no image - exactly the degraded run whose text a reader
+            # most wants to keep.
+            "markdown_url_path": f"/artifacts/{folder.name}/content.md",
         }

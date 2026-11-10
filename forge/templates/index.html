@@ -69,6 +69,30 @@
   footer{margin-top:30px;font-size:12px;color:var(--dim)}
   code{background:var(--bg);border:1px solid var(--line);padding:1px 5px;border-radius:4px;
        font-size:12px}
+  /* Printing is the PDF export: every browser's print dialog can save to PDF,
+     which is one button and no server-side renderer, no bundled fonts and no
+     extra build weight on a free instance. What prints is the piece - the form,
+     the progress panel and the buttons are chrome, and the dark theme would
+     empty a cartridge. */
+  .actions{display:flex;gap:10px;margin-top:22px}
+  .actions button{margin-top:0;width:auto;padding:9px 16px;font-size:13px;
+    background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:500}
+  .actions button:hover{color:var(--ink);border-color:var(--dim)}
+  .actions a{font-size:13px;color:var(--dim);text-decoration:none;align-self:center;
+    border:1px solid var(--line);border-radius:8px;padding:9px 16px}
+  .actions a:hover{color:var(--ink);border-color:var(--dim)}
+  @media print{
+    @page{margin:18mm}
+    body{background:#fff;color:#111}
+    .panel{background:#fff;border:0;padding:0}
+    header,.lede,#f,#status,.actions,.hint,form{display:none !important}
+    .verdict,.chip{border:1px solid #ccc;color:#444;background:#fff}
+    .run-meta{border-top:1px solid #ccc}
+    img.hero{border:1px solid #ddd;break-inside:avoid}
+    .hero-fig figcaption{color:#555}
+    article h2{break-after:avoid}
+    a{color:#111;text-decoration:none}
+  }
 </style>
 </head>
 <body>
@@ -229,6 +253,11 @@ function render(d){
         <span class="chip">revisions <b>${d.revisions ?? 0}</b></span>
         <span class="chip">image via <b>${esc(img.provider||"–")}</b></span>
         <span class="chip">time <b>${secs}</b></span>
+      </div>
+      <div class="actions">
+        <button type="button" onclick="window.print()">Save as PDF</button>
+        ${art.markdown_url_path ? `<a href="${art.markdown_url_path}" download>Download .md</a>` : ""}
+        ${art.url_path ? `<a href="${art.url_path}" download>Download image</a>` : ""}
       </div>
       <p class="hint">run <code>${esc(d.run_id||"")}</code> ·
          <a href="/v1/runs/${esc(d.run_id||"")}">run record</a></p>
