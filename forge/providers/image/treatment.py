@@ -246,7 +246,7 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             out = _letterbox(out)
 
         elif art_direction == "risograph":
-            out = _flatten(base, 4, _palette_stops(dark, paper, accent, 0.42), keep=0.1)
+            out = _flatten(base, 6, _palette_stops(dark, paper, accent, 0.44), keep=0.24)
             out = ImageEnhance.Contrast(out).enhance(1.2)
             out = _offset_channels(out, 3)
             out = _grain(out, seed, 10)

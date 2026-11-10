@@ -29,7 +29,7 @@ LABELS: dict[str, dict[str, tuple[str, str]]] = {
     },
     # Who the piece is written for.
     "audience": {
-        "executives":    ("Decision-makers", "cost, risk and timing"),
+        "executives":    ("Decision-makers", "senior people weighing cost and risk"),
         "practitioners": ("Specialists", "people who do this for a living"),
         "newcomers":     ("Beginners", "no prior knowledge assumed"),
         "investors":     ("Investors", "where the money is going"),

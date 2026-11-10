@@ -217,3 +217,9 @@ def test_the_steps_stay_on_screen_after_the_piece_arrives(page):
     assert 'statusBox.style.display = "none"' not in page
     assert "All six steps completed." in page
     assert "finished in ${total}s, inside the 300s budget" in page
+
+
+def test_an_audience_describes_who_it_is_not_only_what_it_wants(page):
+    """"cost, risk and timing" named their concerns without saying who they are."""
+    assert "senior people weighing cost and risk" in page
+    assert "cost, risk and timing" not in page
