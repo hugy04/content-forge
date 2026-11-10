@@ -36,13 +36,25 @@ def test_the_form_offers_every_dimension_the_api_accepts(page):
 
 
 @pytest.mark.parametrize("label", [
-    "Challenge the consensus",   # angle: contrarian
-    "Close-up",                  # composition: close_detail
-    "Black, white and blue",     # palette: monochrome_pop
-    "Risograph print",           # art_direction: risograph
+    "Disagree",        # angle: contrarian
+    "Close-up",        # composition: close_detail
+    "Black & white",   # palette: monochrome_pop
+    "Poster print",    # art_direction: risograph
+    "Beginners",       # audience: newcomers
 ])
 def test_options_read_as_english_not_as_keys(page, label):
-    assert f">{label}</option>" in page
+    import html
+    assert f">{html.escape(label)}</option>" in page
+
+
+def test_no_label_is_longer_than_a_dropdown(page):
+    """A label that wraps is a label nobody skims."""
+    from forge.diversity.labels import LABELS
+
+    for dimension, options in LABELS.items():
+        for key, (label, hint) in options.items():
+            assert len(label) <= 18, f"{dimension}.{key}: {label!r} too long"
+            assert len(hint) <= 48, f"{dimension}.{key}: hint too long"
 
 
 def test_the_model_s_own_wording_is_not_shown_to_a_reader(page):

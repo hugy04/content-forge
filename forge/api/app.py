@@ -231,16 +231,16 @@ async def index(request: Request):
         "dimensions": [
             (key, label, dimension_options(key, pool), auto_hint)
             for key, label, pool, auto_hint in (
-                ("angle", "Angle", ANGLES,
-                 "an angle recent runs have not used"),
+                ("angle", "Focus on", ANGLES,
+                 "a focus recent runs have not used"),
                 ("audience", "Written for", AUDIENCES,
                  "a readership recent runs have not used"),
                 ("art_direction", "Image style", ART_DIRECTIONS,
                  "a look recent runs have not used"),
                 ("palette", "Colours", PALETTES,
                  "colours recent runs have not used"),
-                ("composition", "Framing", COMPOSITIONS,
-                 "a framing that suits the subject"),
+                ("composition", "How close", COMPOSITIONS,
+                 "a distance that suits the subject"),
             )
         ],
         "mode": settings.run_mode,
