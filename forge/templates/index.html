@@ -48,6 +48,9 @@
   .chip{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--bg);
         border:1px solid var(--line);color:var(--dim)}
   .chip b{color:var(--ink);font-weight:600}
+  /* The run's own facts read as a colophon, so they sit under the piece with a
+     rule above them rather than between the headline and the image. */
+  .run-meta{margin-top:28px;padding-top:18px;border-top:1px solid var(--line)}
   .verdict{font-size:12px;padding:3px 10px;border-radius:99px;font-weight:650}
   .v-completed{background:rgba(61,220,151,.14);color:var(--ok)}
   .v-partial{background:rgba(255,182,72,.14);color:var(--warn)}
@@ -210,7 +213,13 @@ function render(d){
     <div class="panel">
       <span class="verdict v-${verdict}">${verdict}</span>
       <h2 style="margin:12px 0 2px;font-size:22px">${esc(d.title||"")}</h2>
-      <div class="meta">
+      ${art.url_path ? `<figure class="hero-fig">
+          <img class="hero" src="${art.url_path}" alt="${esc(img.alt_text||"")}">
+          ${img.alt_text ? `<figcaption>${esc(img.alt_text)}</figcaption>` : ""}
+        </figure>` : ""}
+      ${d.warnings && d.warnings.length ? `<p class="hint">⚠ ${d.warnings.map(esc).join(" · ")}</p>` : ""}
+      <article id="body"></article>
+      <div class="meta run-meta">
         <span class="chip">format <b>${esc(sel.style||"–")}</b></span>
         <span class="chip">angle <b>${esc(sel.angle||"–")}</b></span>
         <span class="chip">audience <b>${esc(sel.audience||"–")}</b></span>
@@ -221,12 +230,6 @@ function render(d){
         <span class="chip">image via <b>${esc(img.provider||"–")}</b></span>
         <span class="chip">time <b>${secs}</b></span>
       </div>
-      ${art.url_path ? `<figure class="hero-fig">
-          <img class="hero" src="${art.url_path}" alt="${esc(img.alt_text||"")}">
-          ${img.alt_text ? `<figcaption>${esc(img.alt_text)}</figcaption>` : ""}
-        </figure>` : ""}
-      ${d.warnings && d.warnings.length ? `<p class="hint">⚠ ${d.warnings.map(esc).join(" · ")}</p>` : ""}
-      <article id="body"></article>
       <p class="hint">run <code>${esc(d.run_id||"")}</code> ·
          <a href="/v1/runs/${esc(d.run_id||"")}">run record</a></p>
     </div>`;
