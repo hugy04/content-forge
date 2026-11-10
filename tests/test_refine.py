@@ -167,3 +167,20 @@ def test_a_revision_clock_survives_its_own_retry(client):
     page = client.get("/").text
     assert '((Date.now()-tTotal)/1000).toFixed(0) + "s elapsed"' in page
     assert "attempt ${attemptNo} of ${MAX_ATTEMPTS}" in page
+
+
+def test_a_run_after_a_revision_shows_the_six_steps_again(client):
+    """`currentSteps` is sticky so a timer tick need not restate which list it
+    paints. The cost is that whoever starts a run must say - and the generate
+    path was not saying, so a run begun after a revision drew "Rewriting,
+    Review, Done" while generating six stages.
+    """
+    page = client.get("/").text
+    assert "t0 = tTotal = Date.now(); paintSteps(0, undefined, STEPS);" in page
+    assert "currentSteps = STEPS;" in page, "and a clean slate forgets too"
+
+
+def test_each_retry_repaints_its_own_step_list(client):
+    page = client.get("/").text
+    assert "if (onRetry) onRetry(attempt + 1);" in page
+    assert "else paintSteps(0, undefined, STEPS);" in page

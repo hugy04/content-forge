@@ -321,6 +321,7 @@ newrun.addEventListener("click", ()=>{
   topic.value = "";
   result.style.display = "none"; result.innerHTML = "";
   statusBox.style.display = "none";
+  currentSteps = STEPS;
   newrun.hidden = true;
   window.scrollTo({top: 0, behavior: "smooth"});
   topic.focus();
@@ -414,10 +415,12 @@ async function submitWithRetry(payload, url, onRetry){
       if (!(err instanceof TypeError) || attempt >= MAX_ATTEMPTS) throw err;
       elapsed.textContent = `connection lost - reconnecting (attempt ${attempt+1} of ${MAX_ATTEMPTS})`;
       await waitForWake(75000);
-      if (onRetry) { onRetry(attempt + 1); continue; }
       // The pipeline restarts, so the markers do. The elapsed clock does not:
-      // it is the wait, and the wait kept running.
-      attemptNo = attempt + 1; t0 = Date.now(); step = 0; paintSteps(0);
+      // it is the wait, and the wait kept running. A caller with its own step
+      // list repaints its own; everyone else gets the six-step one.
+      attemptNo = attempt + 1; t0 = Date.now(); step = 0;
+      if (onRetry) onRetry(attempt + 1);
+      else paintSteps(0, undefined, STEPS);
     }
   }
 }
@@ -477,7 +480,7 @@ form.addEventListener("submit", async (e)=>{
   go.disabled = true; go.textContent = "Generating…";
   result.style.display = "none"; statusBox.style.display = "block";
   step = 0; failed = false; attemptNo = 1;
-  t0 = tTotal = Date.now(); paintSteps(0);
+  t0 = tTotal = Date.now(); paintSteps(0, undefined, STEPS);
   // Progress is advanced on a timer: the server returns one response at the
   // end, so this communicates liveness rather than true stage state.
   timer = setInterval(()=>{
