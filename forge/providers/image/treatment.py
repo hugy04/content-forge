@@ -68,7 +68,8 @@ def _mix(a: str, b: str, t: float) -> str:
     return "#%02x%02x%02x" % tuple(round(x + (y - x) * t) for x, y in zip(ca, cb))
 
 
-def _palette_stops(dark: str, paper: str, accent: str) -> list[str]:
+def _palette_stops(dark: str, paper: str, accent: str,
+                   body: float = 0.45) -> list[str]:
     """Stops for a gradient map that keeps the accent an accent.
 
     The obvious ramp is dark -> accent -> paper, and it is wrong. A photograph
@@ -76,15 +77,16 @@ def _palette_stops(dark: str, paper: str, accent: str) -> list[str]:
     the picture: "Ocean" has a single ember-orange accent and came back a
     wholly orange image.
 
-    The palettes describe one dark, one light and one accent, so the body of
-    the ramp runs dark to paper through their own blend, and the accent is
-    given the top band only - the highlights, which is where a spot colour
-    belongs. Repeating `paper` weights the ramp rather than complicating the
-    interpolator: with these stops the accent occupies roughly the brightest
-    seventh of the range.
+    Nor can the middle simply be `paper`. That was the first correction, and it
+    washed every treatment out to the same pale non-colour - five of the eight
+    became the same picture, which defeats the point of having eight.
+
+    So the body of the ramp is a blend of the palette's own dark and light,
+    `body` of the way across. That keeps contrast and keeps the hue, while the
+    accent gets the top band only, which is where a spot colour belongs.
     """
-    mid = _mix(dark, paper, 0.5)
-    return [dark, mid, paper, paper, paper, paper, _mix(paper, accent, 0.85)]
+    mid = _mix(dark, paper, body)
+    return [dark, mid, _mix(mid, paper, 0.55), paper, _mix(paper, accent, 0.85)]
 
 
 def _gradient_map(image: Image.Image, stops: list[str]) -> Image.Image:
@@ -244,9 +246,8 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             out = _letterbox(out)
 
         elif art_direction == "risograph":
-            stops = _palette_stops(dark, paper, accent)
-            out = _flatten(base, 6, stops)
-            out = Image.blend(out, _tritone(base, dark, accent, paper), 0.22)
+            out = _flatten(base, 4, _palette_stops(dark, paper, accent, 0.42), keep=0.1)
+            out = ImageEnhance.Contrast(out).enhance(1.2)
             out = _offset_channels(out, 3)
             out = _grain(out, seed, 10)
 
@@ -254,21 +255,29 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             out = _edges(base, dark, paper)
 
         elif art_direction == "flat_vector":
-            out = _flatten(base, 7, _palette_stops(dark, paper, accent), keep=0.3)
+            clean = base.filter(ImageFilter.MedianFilter(7)).filter(
+                ImageFilter.GaussianBlur(1.6))
+            out = _flatten(clean, 5, _palette_stops(dark, paper, accent, 0.38), keep=0.12)
+            out = ImageEnhance.Contrast(out).enhance(1.12)
 
         elif art_direction == "isometric_3d":
-            out = _flatten(base, 8, _palette_stops(dark, paper, accent), keep=0.32)
-            out = ImageEnhance.Brightness(out).enhance(1.04)
+            clean = base.filter(ImageFilter.MedianFilter(5))
+            out = _flatten(clean, 9, _palette_stops(dark, paper, accent, 0.52), keep=0.26)
+            out = ImageEnhance.Brightness(out).enhance(1.06)
+            out = ImageEnhance.Color(out).enhance(0.8)
 
         elif art_direction == "collage":
-            out = _flatten(base, 10, _palette_stops(dark, paper, accent), keep=0.42)
+            out = _flatten(base, 12, _palette_stops(dark, paper, accent, 0.5), keep=0.46)
             out = _offset_channels(out, 3)
             out = _paper_border(out, paper, inset=26)
             out = _grain(out, seed, 6)
 
         elif art_direction == "data_abstract":
-            out = _flatten(base, 5, _palette_stops(dark, paper, accent))
-            out = _grid(out, accent)
+            # The most abstract of the eight: three tones, no photograph left,
+            # and a denser grid, so it cannot be mistaken for the print looks.
+            out = _flatten(base, 3, _palette_stops(dark, paper, accent, 0.3))
+            out = _grid(out, accent, step=40)
+            out = _grid(out, accent, step=120)
 
         else:
             log.info("no treatment registered for %r; passing through", art_direction)

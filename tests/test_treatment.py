@@ -204,7 +204,20 @@ def test_an_outline_without_the_field_changes_nothing():
     assert composition_for(_sel("environmental"), {}) == ("environmental", None)
 
 
-def test_the_accent_stays_an_accent():
+def _distance(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
+
+
+def _off_the_dark_to_paper_line(colour, dark, paper):
+    """How far a colour sits from the straight blend of the palette's own dark
+    and light tones. Near zero means it is made of the palette, not the accent."""
+    from forge.providers.image.treatment import _mix, _rgb
+
+    return min(_distance(colour, _rgb(_mix(dark, paper, t / 50)))
+               for t in range(51))
+
+
+def test_the_accent_appears_once_and_only_at_the_top():
     """"Ocean" came back orange: its single ember accent sat at the midpoint
     of the ramp, and a photograph is mostly midtones."""
     from forge.providers.image.card import PALETTE_HEX
@@ -213,23 +226,9 @@ def test_the_accent_stays_an_accent():
     dark, paper, accent = PALETTE_HEX["cobalt_sand"]
     stops = _palette_stops(dark, paper, accent)
 
-    middle = _rgb(stops[len(stops) // 2])
-    assert middle == _rgb(paper), "the body of the ramp is the palette's light tone"
-    # The accent appears once, in the final stop, and nowhere else.
-    assert sum(1 for s in stops if _rgb(s) != _rgb(paper)
-               and _rgb(s) != _rgb(dark) and s != stops[1]) == 1
-
-
-def test_the_accent_only_touches_the_brightest_band():
-    from forge.providers.image.card import PALETTE_HEX
-    from forge.providers.image.treatment import _palette_stops, _ramp, _rgb
-
-    dark, paper, accent = PALETTE_HEX["cobalt_sand"]
-    table = _ramp([_rgb(s) for s in _palette_stops(dark, paper, accent)])
-    reds = table[:256]
-    # Midtone red must be near paper's, not near the orange accent's.
-    assert abs(reds[128] - _rgb(paper)[0]) < 30
-    assert reds[255] > reds[128], "highlights still warm towards the accent"
+    tainted = [i for i, stop in enumerate(stops)
+               if _off_the_dark_to_paper_line(_rgb(stop), dark, paper) > 20]
+    assert tainted == [len(stops) - 1], "the accent belongs in the last stop alone"
 
 
 @pytest.mark.parametrize("palette", list(PALETTES))
@@ -237,7 +236,10 @@ def test_every_palette_reads_as_its_name_not_its_accent(palette):
     """The property, checked on all eight rather than the one that was reported.
 
     A photograph is mostly midtones, so whatever the ramp puts at luminance 128
-    becomes the colour of the picture. That has to be the palette's light tone.
+    becomes the colour of the picture. It has to be made of the palette's own
+    dark and light tones - not its accent, and not a wash of pure paper, which
+    was the first correction and flattened every treatment into the same pale
+    non-picture.
     """
     from forge.providers.image.card import PALETTE_HEX
     from forge.providers.image.treatment import _palette_stops, _ramp, _rgb
@@ -246,8 +248,52 @@ def test_every_palette_reads_as_its_name_not_its_accent(palette):
     table = _ramp([_rgb(s) for s in _palette_stops(dark, paper, accent)])
     midtone = (table[128], table[256 + 128], table[512 + 128])
 
-    def away(colour):
-        return sum((a - b) ** 2 for a, b in zip(midtone, colour)) ** 0.5
+    assert _off_the_dark_to_paper_line(midtone, dark, paper) < 20, (
+        f"{palette}: midtone {midtone} is not made of its own dark and light")
+    assert _distance(midtone, _rgb(paper)) > 20, (
+        f"{palette}: midtone is pure paper, which washes the treatment out")
 
-    assert away(_rgb(paper)) < away(_rgb(accent)), (
-        f"{palette}: midtone {midtone} is nearer its accent than its paper")
+
+def _photo() -> Image.Image:
+    """A smooth, photograph-like gradient with a subject and some texture.
+
+    The synthetic `source()` rainbow is useless here: every treatment maps it
+    to something wildly different, so distinctness is trivially satisfied. The
+    failure this guards against only shows on real photographic input, which is
+    mostly midtones.
+    """
+    img = Image.new("RGB", (200, 120))
+    pixels = img.load()
+    for x in range(200):
+        for y in range(120):
+            base = 90 + int(70 * (y / 120)) + ((x * 7 + y * 3) % 11)
+            subject = 60 if (60 < x < 130 and 30 < y < 90) else 0
+            pixels[x, y] = (min(255, base + subject + 14),
+                            min(255, base + subject),
+                            min(255, base + subject - 10))
+    return img
+
+
+@pytest.mark.parametrize("palette", ["cobalt_sand", "teal_copper"])
+def test_no_two_art_directions_collapse_into_each_other(palette):
+    """The regression this exists for.
+
+    Two correct fixes - blending the photograph back in, and taking the accent
+    out of the midtones - combined to wash five of the eight directions into
+    the same pale picture. Each was right on its own; together they undid the
+    reason the treatment layer exists at all.
+    """
+    photo = _photo()
+    rendered = {art: apply(photo, art, palette, seed=11)[0] for art in ART_DIRECTIONS}
+
+    too_close = []
+    for i, first in enumerate(ART_DIRECTIONS):
+        for second in list(ART_DIRECTIONS)[i + 1:]:
+            a = list(rendered[first].convert("RGB").getdata())
+            b = list(rendered[second].convert("RGB").getdata())
+            apart = sum(abs(p - q) for pa, pb in zip(a, b)
+                        for p, q in zip(pa, pb)) / (len(a) * 3)
+            if apart < 12:
+                too_close.append((first, second, round(apart, 1)))
+
+    assert not too_close, f"indistinguishable art directions: {too_close}"
