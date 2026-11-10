@@ -53,6 +53,12 @@
   .v-partial{background:rgba(255,182,72,.14);color:var(--warn)}
   .v-failed{background:rgba(255,107,107,.14);color:var(--bad)}
   img.hero{width:100%;border-radius:var(--radius);border:1px solid var(--line);display:block}
+  /* The alt text was already written for screen readers and then thrown away.
+     Shown, it does the job a caption does in any publication: it tells a reader
+     what they are looking at, so an editorial image does not have to be
+     decoded. */
+  .hero-fig{margin:0}
+  .hero-fig figcaption{font-size:13px;color:var(--dim);margin-top:8px;line-height:1.5}
   article{margin-top:22px}
   article h2{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
   article p{margin:0 0 14px}
@@ -215,7 +221,10 @@ function render(d){
         <span class="chip">image via <b>${esc(img.provider||"–")}</b></span>
         <span class="chip">time <b>${secs}</b></span>
       </div>
-      ${art.url_path ? `<img class="hero" src="${art.url_path}" alt="${esc(img.alt_text||"")}">` : ""}
+      ${art.url_path ? `<figure class="hero-fig">
+          <img class="hero" src="${art.url_path}" alt="${esc(img.alt_text||"")}">
+          ${img.alt_text ? `<figcaption>${esc(img.alt_text)}</figcaption>` : ""}
+        </figure>` : ""}
       ${d.warnings && d.warnings.length ? `<p class="hint">⚠ ${d.warnings.map(esc).join(" · ")}</p>` : ""}
       <article id="body"></article>
       <p class="hint">run <code>${esc(d.run_id||"")}</code> ·

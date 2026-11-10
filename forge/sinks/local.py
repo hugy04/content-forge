@@ -57,7 +57,11 @@ class LocalSink:
         body = ctx.draft.get("body_markdown", "")
         title = ctx.draft.get("title", ctx.topic)
         alt = ctx.image_prompt.get("alt_text", title)
-        image_md = "![{alt}](image.png)\n\n".format(alt=alt) if ctx.image else ""
+        # Caption as well as alt text: the first is for a reader looking at the
+        # image, the second for one who cannot. Markdown renderers show an
+        # italic line under an image as a caption, and GitHub and Docs both do.
+        image_md = ("![{alt}](image.png)\n\n*{alt}*\n\n".format(alt=alt)
+                    if ctx.image else "")
         document = f"{_front_matter(ctx)}\n\n# {title}\n\n{image_md}{body}\n"
 
         (folder / "content.md").write_text(document, encoding="utf-8")

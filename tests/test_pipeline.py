@@ -197,3 +197,19 @@ async def test_a_deadline_blown_before_anything_exists_is_still_a_failure(deps):
 
     assert result.status == "failed"
     assert not result.draft
+
+
+async def test_the_image_carries_a_visible_caption_as_well_as_alt_text(deps):
+    """Alt text was written for screen readers and then never shown.
+
+    An editorial image that illustrates a piece obliquely - empty stadium seats
+    for an article about a manager leaving - leaves a reader decoding it. A
+    caption is how every publication solves that, and the text already existed.
+    """
+    ctx = await generate("A topic that needs a captioned image", deps=deps)
+    markdown = Path(ctx.artifacts["local"]["folder"], "content.md").read_text()
+
+    alt = ctx.image_prompt.get("alt_text")
+    assert alt, "the pipeline should always produce alt text"
+    assert f"![{alt}](image.png)" in markdown, "alt text belongs on the image"
+    assert f"*{alt}*" in markdown, "and the same line should render as a caption"

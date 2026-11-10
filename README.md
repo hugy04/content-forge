@@ -20,7 +20,7 @@ Built for the Case 2 assignment: an AI-powered content generation workflow.
 | **Variety** | 115,200 combinations across 6 dimensions, with cooldown + recency weighting |
 | **Quality** | 9 deterministic checks, bounded self-repair loop |
 | **Runs as** | FastAPI inline (zero infra) or Celery + Redis (scale) |
-| **Tests** | 126, all offline — no API key needed |
+| **Tests** | 127, all offline — no API key needed |
 
 ---
 
