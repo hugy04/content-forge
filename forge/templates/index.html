@@ -387,6 +387,7 @@ function wireRevise(runId){
     statusBox.style.display = "block";
     step = 0; tTotal = t0 = Date.now(); attemptNo = 1;
     paintSteps(0, undefined, REVISE_STEPS);
+    statusBox.scrollIntoView({behavior: "smooth", block: "center"});
     clearInterval(timer);
     timer = setInterval(()=>{
       const secs = ((Date.now()-t0)/1000);

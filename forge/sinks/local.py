@@ -54,6 +54,7 @@ class LocalSink:
         folder = self.out_dir / f"{ctx.created_at[:10]}_{ctx.slug}_{ctx.run_id[:8]}"
         folder.mkdir(parents=True, exist_ok=True)
 
+        has_bytes = ctx.image is not None and bool(getattr(ctx.image, "data", b""))
         body = ctx.draft.get("body_markdown", "")
         title = ctx.draft.get("title", ctx.topic)
         alt = ctx.image_prompt.get("alt_text", title)
@@ -61,11 +62,13 @@ class LocalSink:
         # image, the second for one who cannot. Markdown renderers show an
         # italic line under an image as a caption, and GitHub and Docs both do.
         image_md = ("![{alt}](image.png)\n\n*{alt}*\n\n".format(alt=alt)
-                    if ctx.image else "")
+                    if has_bytes else "")
         document = f"{_front_matter(ctx)}\n\n# {title}\n\n{image_md}{body}\n"
 
         (folder / "content.md").write_text(document, encoding="utf-8")
-        if ctx.image is not None:
+        # An image with no bytes is not an image. Writing it anyway replaced
+        # a good PNG with a zero-byte file on every revision.
+        if has_bytes:
             (folder / "image.png").write_bytes(ctx.image.data)
         (folder / "run.json").write_text(
             json.dumps(ctx.summary(), indent=2, default=str), encoding="utf-8"
@@ -75,9 +78,9 @@ class LocalSink:
             "ok": True,
             "folder": str(folder),
             "markdown": str(folder / "content.md"),
-            "image": str(folder / "image.png") if ctx.image is not None else None,
+            "image": str(folder / "image.png") if has_bytes else None,
             "run_json": str(folder / "run.json"),
-            "url_path": f"/artifacts/{folder.name}/image.png" if ctx.image else None,
+            "url_path": f"/artifacts/{folder.name}/image.png" if has_bytes else None,
             # Stated rather than derived. The page used to build this by
             # replacing "image.png" in the image URL, which breaks for a run
             # that has no image - exactly the degraded run whose text a reader

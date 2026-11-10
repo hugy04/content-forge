@@ -103,3 +103,55 @@ def test_one_retry_policy_serves_both_calls(client):
     page = client.get("/").text
     assert page.count("async function submitWithRetry") == 1
     assert page.count("function waitForWake") == 1
+
+
+def test_a_revision_does_not_destroy_the_image(client, tmp_path):
+    """It overwrote a good PNG with a zero-byte file.
+
+    `publish` writes whatever bytes the context hands it, and the revision
+    handed it an empty placeholder - so asking for a shorter opening deleted
+    the picture. Twice, and there was nothing left to recover.
+    """
+    import glob
+    import os
+
+    first = _run(client)
+    images = glob.glob(os.path.join(str(tmp_path), "out", "*", "image.png"))
+    assert images and os.path.getsize(images[0]) > 0
+    original = os.path.getsize(images[0])
+
+    client.post(f"/v1/runs/{first['run_id']}/revise", json={"instruction": "shorter"})
+
+    after = glob.glob(os.path.join(str(tmp_path), "out", "*", "image.png"))
+    assert after, "the image file still exists"
+    assert all(os.path.getsize(f) == original for f in after), "and still has its bytes"
+
+
+def test_a_run_with_no_image_bytes_claims_no_image():
+    """The guard, independent of how it is reached."""
+    import asyncio
+    import types
+
+    from forge.sinks.local import LocalSink
+
+    class _Empty:
+        provider, generated, data = "none", False, b""
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as out:
+        ctx = types.SimpleNamespace(
+            created_at="2026-01-01T00:00:00+00:00", slug="s", run_id="r" * 8,
+            draft={"body_markdown": "body", "title": "T"}, image=_Empty(),
+            image_prompt={"alt_text": "a"}, outline={}, selection=None,
+            word_count=600, revisions=0, qc={"passed": True}, topic="t",
+            summary=lambda: {})
+        result = asyncio.run(LocalSink(out).publish(ctx))
+
+    assert result["image"] is None
+    assert result["url_path"] is None
+
+
+def test_a_revision_scrolls_its_progress_into_view(client):
+    """The box is at the foot of a long piece; the stepper is above it."""
+    page = client.get("/").text
+    assert 'statusBox.scrollIntoView({behavior: "smooth", block: "center"})' in page

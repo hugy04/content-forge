@@ -7,6 +7,8 @@ generic shape is what lets Zapier/Make/a CMS call this without a custom adapter.
 """
 from __future__ import annotations
 
+import pathlib
+
 import json
 
 import asyncio
@@ -310,13 +312,21 @@ class _RestoredImage:
     produce a file that is already on disk.
     """
 
-    def __init__(self, meta: dict):
+    def __init__(self, meta: dict, path: str | None = None):
         self.provider = meta.get("provider", "none")
         self.generated = meta.get("generated", False)
         self.width = meta.get("width", 0)
         self.height = meta.get("height", 0)
         self.meta = meta.get("meta", {})
+        # The bytes matter: `publish` writes whatever is here, so an empty
+        # placeholder overwrote a perfectly good PNG with nothing. A revision
+        # that destroys the picture is worse than one that fails.
         self.data = b""
+        if path:
+            try:
+                self.data = pathlib.Path(path).read_bytes()
+            except OSError:
+                self.data = b""
 
 @app.post("/v1/runs/{run_id}/revise")
 async def revise(run_id: str, request: Request):
@@ -357,7 +367,9 @@ async def revise(run_id: str, request: Request):
     ctx.selection = Selection(**payload["selection"]) if payload.get("selection") else None
     # The previous run's own image, reused rather than regenerated: asking for
     # a sharper opening is not asking for a different picture.
-    ctx.image = _RestoredImage(payload.get("image") or {})
+    previous = (payload.get("artifacts") or {}).get("local") or {}
+    ctx.image = _RestoredImage(payload.get("image") or {},
+                               previous.get("image"))
 
     try:
         await refine_stage.run(ctx, deps, instruction)
