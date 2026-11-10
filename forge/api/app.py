@@ -263,6 +263,8 @@ async def index(request: Request):
         ],
         "mode": settings.run_mode,
         "fake": settings.fake_providers,
+        # No sign-out button on an instance that never signed you in.
+        "gated": bool(settings.basic_auth_user and settings.basic_auth_pass),
         "image_chain": " → ".join(settings.image_provider_chain),
     })
 

@@ -106,3 +106,36 @@ def test_the_json_api_is_gated_too(monkeypatch, tmp_path):
     assert r.status_code == 401
     assert r.json()["error"] == "authentication required"
 
+
+
+def test_a_gated_instance_offers_a_way_out(monkeypatch, tmp_path):
+    """The logout route existed and nothing on the page could reach it."""
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    page = client.get("/", headers=_auth("u", "p")).text
+    assert 'action="/logout"' in page
+    assert "Sign out" in page
+
+
+def test_an_open_instance_offers_no_sign_out(monkeypatch, tmp_path):
+    """There is no session to end, so the button would do nothing."""
+    client = _client(monkeypatch, DB_PATH=str(tmp_path / "f.db"))
+    page = client.get("/").text
+    assert "Sign out" not in page
+
+
+def test_signing_out_clears_the_session_and_returns_to_login(monkeypatch, tmp_path):
+    client = _client(monkeypatch, "u", "p", DB_PATH=str(tmp_path / "f.db"))
+    client.post("/login", data={"username": "u", "password": "p"},
+                follow_redirects=False)
+    assert client.get("/", follow_redirects=False).status_code == 200, "signed in"
+
+    response = client.post("/logout", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+    client.cookies.clear()  # the browser drops what delete_cookie expires
+    # As a browser: back to the sign-in page, not a 401 meant for scripts.
+    back = client.get("/", follow_redirects=False,
+                      headers={"Accept": "text/html"})
+    assert back.status_code == 303
+    assert back.headers["location"].startswith("/login")
