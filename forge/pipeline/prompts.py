@@ -205,6 +205,11 @@ car" beats "automotive innovation".
 render them as garbage.
 - Never name or describe a real, identifiable person, even if the brief does. \
 Swap them for the role, the setting or the object they are associated with.
+- Describe the subject in its own true colours. Never impose a colour scheme on \
+it: a palette belongs to the light and the surroundings, not to the thing itself. \
+A mango asked for in violet is rendered violet, and stops reading as a mango. \
+The run's palette is applied deterministically after generation, so asking the \
+model for it here only applies it twice.
 - Keep the prompt under 90 words.
 - alt_text is a plain, literal description of the resulting image for a screen \
 reader. One sentence, no style jargon."""
@@ -218,7 +223,6 @@ Image brief: {outline.get('image_brief')}
 
 Apply these visual directions exactly:
 - Medium and style: {described['art_direction']}
-- Colour palette: {described['palette']}
 - Composition: {described['composition']}
 
 Return JSON matching the schema."""

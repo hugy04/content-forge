@@ -95,17 +95,28 @@ def _posterise(image: Image.Image, bits: int) -> Image.Image:
     return ImageOps.posterize(image.convert("RGB"), bits)
 
 
-def _flatten(image: Image.Image, levels: int, stops: list[str]) -> Image.Image:
+def _flatten(image: Image.Image, levels: int, stops: list[str],
+             keep: float = 0.0) -> Image.Image:
     """Quantise luminance into N bands, then map the bands to the palette.
 
     Posterising *after* recolouring produces hue artefacts, because each RGB
     channel is quantised independently. Quantising the luminance first and
     colouring second keeps every band on the palette.
+
+    The luminance step throws away hue, which is correct for a direction that
+    is genuinely ink-limited and wrong for one that is only stylised. Some
+    subjects *are* their colour - a mango that comes back grey-mapped onto a
+    violet ramp is no longer recognisably a mango - so `keep` blends the
+    original back in. The palette still sets the mood; it no longer overrules
+    what the thing actually looks like.
     """
     grey = ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=2)
     step = max(1, 256 // levels)
     banded = grey.point(lambda v: min(255, (v // step) * step + step // 2))
-    return banded.convert("RGB").point(_ramp([_rgb(s) for s in stops]))
+    mapped = banded.convert("RGB").point(_ramp([_rgb(s) for s in stops]))
+    if keep <= 0:
+        return mapped
+    return Image.blend(mapped, image.convert("RGB"), min(keep, 1.0))
 
 
 def _vignette(image: Image.Image, strength: float = 0.55) -> Image.Image:
@@ -206,14 +217,14 @@ def apply(image: Image.Image, art_direction: str, palette: str,
             out = _edges(base, dark, paper)
 
         elif art_direction == "flat_vector":
-            out = _flatten(base, 5, [dark, accent, paper])
+            out = _flatten(base, 7, [dark, accent, paper], keep=0.3)
 
         elif art_direction == "isometric_3d":
-            out = _flatten(base, 6, [dark, accent, paper])
+            out = _flatten(base, 8, [dark, accent, paper], keep=0.32)
             out = ImageEnhance.Brightness(out).enhance(1.04)
 
         elif art_direction == "collage":
-            out = _flatten(base, 7, [dark, accent, paper])
+            out = _flatten(base, 10, [dark, accent, paper], keep=0.42)
             out = _offset_channels(out, 3)
             out = _paper_border(out, paper, inset=26)
             out = _grain(out, seed, 6)

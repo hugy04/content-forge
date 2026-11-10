@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from forge.diversity.engine import Selection
+from forge.pipeline.normalise import normalise_topic
 from forge.providers.text.usage import Usage
 
 
@@ -108,6 +109,17 @@ class RunContext:
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     status: str = "pending"                 # pending|completed|partial|failed
+
+    def __post_init__(self) -> None:
+        # Every entry point builds one of these, so normalising here is the
+        # only way the API, the CLI, the batch fan-out and the Celery worker
+        # all agree on what the topic is. It runs before `idempotency_key` is
+        # ever read, so "mango" and "make me a picture of a mango" collapse to
+        # the same cached run rather than paying twice for the same piece.
+        topic, note = normalise_topic(self.topic)
+        if note:
+            self.topic = topic
+            self.warnings.append(note)
 
     @property
     def idempotency_key(self) -> str:

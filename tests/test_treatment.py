@@ -101,3 +101,59 @@ def test_treatment_never_raises_on_a_grayscale_or_tiny_image(art):
         out, applied = apply(src, art, "forest_clay")
         assert applied in {art, "failed"}
         assert out.mode == "RGB"
+
+
+def _hue_distance(a: Image.Image, b: Image.Image) -> float:
+    """Mean absolute per-channel difference between two same-size images."""
+    pa, pb = a.convert("RGB").getdata(), b.convert("RGB").getdata()
+    total = sum(abs(x - y) for pxa, pxb in zip(pa, pb) for x, y in zip(pxa, pxb))
+    return total / (len(pa) * 3)
+
+
+def test_keep_blends_the_subject_s_own_colour_back_in():
+    """The regression that made a mango unrecognisable.
+
+    `_flatten` greyscales before mapping onto the palette ramp, which discards
+    hue outright. For a subject whose identity *is* its colour that is fatal.
+    `keep` must move the result measurably back towards the original.
+    """
+    from forge.providers.image.treatment import _flatten
+
+    src = source()
+    stops = ["#1b1033", "#f2e6d8", "#c77dff"]
+    flattened = _flatten(src, 10, stops, keep=0.0)
+    blended = _flatten(src, 10, stops, keep=0.42)
+
+    assert digest(flattened) != digest(blended)
+    assert _hue_distance(blended, src) < _hue_distance(flattened, src)
+
+
+def test_keep_is_clamped_and_zero_is_the_old_behaviour():
+    from forge.providers.image.treatment import _flatten
+
+    src = source()
+    stops = ["#1b1033", "#f2e6d8", "#c77dff"]
+    assert digest(_flatten(src, 8, stops)) == digest(_flatten(src, 8, stops, keep=0.0))
+    # keep=1 returns the source untouched; anything above must not raise.
+    assert digest(_flatten(src, 8, stops, keep=4.0)) == digest(src.convert("RGB"))
+
+
+@pytest.mark.parametrize("art,levels", [("flat_vector", 7), ("isometric_3d", 8)])
+def test_stylised_directions_no_longer_discard_all_hue(art, levels):
+    """These stylise a photograph; they do not re-ink it from scratch.
+
+    Measured against the ramp-only output the old code produced. `collage` is
+    excluded on purpose: it adds grain, a channel offset and a paper border
+    after the blend, so a per-pixel distance says nothing useful about it - its
+    `keep` is covered at the `_flatten` level above.
+    """
+    from forge.providers.image.treatment import _flatten
+    from forge.providers.image.card import PALETTE_HEX
+
+    src = source()
+    dark, paper, accent = PALETTE_HEX["dusk_violet"]
+    out, applied = apply(src, art, "dusk_violet", seed=7)
+    ramp_only = _flatten(src, levels, [dark, accent, paper], keep=0.0)
+
+    assert applied == art
+    assert _hue_distance(out, src) < _hue_distance(ramp_only, src)
