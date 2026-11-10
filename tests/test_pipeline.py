@@ -292,3 +292,24 @@ def test_an_identical_request_still_shares_one_key():
     a = RunContext(topic="air pollution", overrides=overrides)
     b = RunContext(topic="Air Pollution ", overrides=dict(overrides))
     assert a.idempotency_key == b.idempotency_key
+
+
+def test_the_fallback_card_is_not_announced_twice():
+    """The card carries its own label, inside the image, where it stays with
+    the file. A banner above it is the page saying so a second time."""
+    from forge.pipeline.context import RunContext
+
+    ctx = RunContext(topic="battery recycling")
+    ctx.warnings.append("no generative image provider was reachable; a locally "
+                        "rendered fallback card was used instead")
+    assert ctx.warnings, "the run record still knows"
+    assert ctx.notices == [], "the reader is told once, by the card"
+
+
+def test_the_card_label_does_not_read_as_an_incident_report():
+    from forge.providers.image.card import CardProvider
+    import inspect
+
+    source = inspect.getsource(CardProvider)
+    assert "no generative provider reachable" not in source
+    assert "generated cover" in source

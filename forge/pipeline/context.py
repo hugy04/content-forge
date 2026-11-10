@@ -16,6 +16,10 @@ from forge.pipeline.normalise import normalise_topic
 # Repairs and diagnostics. They belong in run.json, not on the page.
 INTERNAL_WARNINGS = (
     "markdown arrived without line breaks",
+    # The fallback card carries its own label, in the image, where it stays
+    # attached to the file. A banner above it is the page saying the same
+    # thing a second time and in smaller type.
+    "no generative image provider was reachable",
     "art-direction treatment skipped",
     "salvage publish failed",
 )

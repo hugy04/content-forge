@@ -96,7 +96,7 @@ class CardProvider:
 
         footer = _font(max(14, width // 72))
         draw.text((margin, height - margin - 24),
-                  "content-forge · fallback card (no generative provider reachable)",
+                  "content-forge · generated cover",
                   font=footer, fill=fg)
 
         buffer = io.BytesIO()
