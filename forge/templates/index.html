@@ -286,15 +286,30 @@ function esc(s){ return (s||"").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 // Deliberately small markdown renderer: headings, bold, italic, paragraphs.
+// Line by line rather than block by block. A heading only has a blank line
+// after it when the model remembered to put one there, and when it did not,
+// matching the whole block against a heading pattern failed and printed
+// "## What Changed" at the reader.
 function md(src){
-  return esc(src).split(/\n{2,}/).map(block=>{
-    const h = block.match(/^(#{2,3})\s+(.*)$/);
-    if (h) return `<h2>${h[2]}</h2>`;
-    let p = block.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")
-                 .replace(/(^|\W)\*(?!\s)(.+?)\*(?!\w)/g,"$1<i>$2</i>")
-                 .replace(/\n/g,"<br>");
-    return `<p>${p}</p>`;
-  }).join("");
+  const out = [];
+  let para = [];
+  const flush = ()=>{
+    if (!para.length) return;
+    const p = para.join("\n")
+      .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+      .replace(/(^|\W)\*(?!\s)(.+?)\*(?!\w)/g, "$1<i>$2</i>")
+      .replace(/\n/g, "<br>");
+    out.push(`<p>${p}</p>`);
+    para = [];
+  };
+  for (const line of esc(src).split("\n")){
+    const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (heading){ flush(); out.push(`<h2>${heading[2]}</h2>`); continue; }
+    if (!line.trim()){ flush(); continue; }
+    para.push(line.trim());
+  }
+  flush();
+  return out.join("");
 }
 
 // The guide line under each select: the description of whatever is chosen

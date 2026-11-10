@@ -38,8 +38,9 @@ STYLES: dict[str, Style] = {
         structure=["promise", "prerequisites", "numbered_steps", "pitfalls", "checklist"],
         voice="direct, second-person, instructional",
         guidance=(
-            "Every section must leave the reader able to do something. Use numbered "
-            "steps with concrete inputs and expected outcomes. No motivational filler."
+            "Every section must leave the reader able to do something. Each step is "
+            "its own heading, with the inputs it needs and the outcome to expect "
+            "written out underneath. No motivational filler."
         ),
     ),
     "opinion": Style(
@@ -69,9 +70,9 @@ STYLES: dict[str, Style] = {
         structure=["framing", "enumerated_items", "synthesis"],
         voice="brisk, concrete, scannable",
         guidance=(
-            "Five to seven numbered items, each standing alone rather than running "
-            "on as prose. Every item makes a claim and backs it with one specific. "
-            "Items must not overlap; order them so the strongest lands first."
+            "Five to seven items, each its own heading with a paragraph under it. "
+            "Every item makes a claim and backs it with one specific. Items must "
+            "not overlap; order them so the strongest lands first."
         ),
     ),
     "case_study": Style(

@@ -130,3 +130,18 @@ def test_one_em_dash_is_not_worth_reporting():
             "## Second\n\n" + "plain prose carries the rest. " * 120)
     result = validate(piece(640, body=body), target_min=500, target_max=800)
     assert "em dashes" not in _tells(result)
+
+
+def test_every_format_is_told_to_produce_one_shape():
+    """A reader should not have to learn a new shape because the engine rolled
+    differently, so the house rule lives in the draft prompt, once."""
+    from forge.diversity.taxonomy import STYLES
+    from forge.pipeline.prompts import DRAFT_SYSTEM
+
+    assert "No bullet points and no numbered lists, in any format" in DRAFT_SYSTEM
+    assert "a blank line, then one or more paragraphs" in DRAFT_SYSTEM
+
+    # And no format's own guidance may contradict it.
+    for key, style in STYLES.items():
+        assert "numbered steps" not in style.guidance.lower(), key
+        assert "numbered items" not in style.guidance.lower(), key

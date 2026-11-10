@@ -52,10 +52,26 @@ def _split_heading_from_body(line: str, known: list[str]) -> str:
     return line
 
 
+def _space_headings(text: str) -> str:
+    """Put a blank line after every heading, and before every heading but the
+    first.
+
+    A heading with its paragraph on the very next line is legal markdown and
+    most renderers cope. Ours did not: it matched whole blocks against a
+    heading pattern, so a heading that shared a block with its paragraph
+    printed as "## What Changed" at the reader. The renderer is fixed too, but
+    the file on disk should be right regardless of who opens it.
+    """
+    text = re.sub(r"(?m)^(\s*#{1,6}\s+\S[^\n]*)\n(?!\n)", r"\1\n\n", text)
+    text = re.sub(r"(?<!\n)\n(?=\s*#{1,6}\s+\S)", "\n\n", text)
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 def normalise(text: str, known_headings: list[str] | None = None) -> tuple[str, bool]:
     """Return (markdown, repaired). `repaired` is False when nothing changed."""
     if not looks_unformatted(text):
-        return text, False
+        # Spacing is not a repair worth reporting, but it still has to be done.
+        return _space_headings(text), False
 
     out = text
     # Headings: put every ##..###### marker at the start of its own block.
@@ -79,7 +95,7 @@ def normalise(text: str, known_headings: list[str] | None = None) -> tuple[str, 
         )
         out = re.sub(r"\n{3,}", "\n\n", out)
 
-    return out.strip(), True
+    return _space_headings(out).strip(), True
 
 
 def repair_draft(draft: dict, ctx=None) -> dict:

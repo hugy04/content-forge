@@ -164,9 +164,13 @@ def test_no_jargon_reaches_the_dropdown(page, jargon):
     assert jargon.lower() not in page.lower()
 
 
-def test_the_list_format_says_it_is_a_list(page):
-    """Otherwise it is indistinguishable from the explanatory article."""
-    assert "numbered items" in page
+def test_the_list_format_says_how_it_differs(page):
+    """Otherwise it is indistinguishable from the explanatory article.
+
+    It no longer says "numbered", because nothing is numbered any more: every
+    format renders as headings and paragraphs so a reader meets one shape.
+    """
+    assert "Five to seven items, each its own heading" in page
 
 
 def test_the_result_reports_choices_in_the_words_the_form_offered(page):
