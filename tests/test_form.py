@@ -88,6 +88,14 @@ def test_every_select_explains_what_auto_would_do(page):
     assert "a format recent runs have not used" in page
 
 
+def test_every_auto_option_is_labelled_the_same_way(page):
+    """Format used to say "Auto (rotate for diversity)" while the other five
+    said "Auto", which read as a different kind of setting."""
+    assert page.count(">Auto</option>") == len(DIMENSIONS)
+    assert "rotate for diversity" not in page
+    assert "diversity engine" not in page
+
+
 def test_every_select_has_a_guide_line(page):
     """The description shows on the page, not only in a tooltip nobody hovers."""
     assert page.count('<small class="guide"></small>') == len(DIMENSIONS)

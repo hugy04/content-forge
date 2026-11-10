@@ -161,7 +161,7 @@
         <div>
           <label for="style">Format</label>
           <select id="style" name="style" data-auto="a format recent runs have not used">
-            <option value="" title="a format recent runs have not used">Auto (rotate for diversity)</option>
+            <option value="" title="a format recent runs have not used">Auto</option>
             {% for key, label, hint in style_options %}
             <option value="{{ key }}" title="{{ hint }}">{{ label }}</option>
             {% endfor %}
@@ -191,8 +191,8 @@
         <p class="hint"><button type="button" id="reset">Reset all to Auto</button></p>
       </details>
       <button id="go" type="submit">Generate</button>
-      <p class="hint">Leave everything on Auto to let the diversity engine choose a
-         format, angle and art direction that recent runs have not used.</p>
+      <p class="hint">Anything left on Auto is picked for you, avoiding whatever
+         the recent pieces already used.</p>
     </form>
   </div>
 
