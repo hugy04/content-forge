@@ -206,7 +206,7 @@ def test_a_day_exhausted_model_is_dropped_from_the_candidate_list():
     p._exhausted.add("gemini-3.6-flash")
     order = p._fallback_models("gemini-3.6-flash")
     assert "gemini-3.6-flash" not in order
-    assert order[0] == "gemini-3-flash-preview"
+    assert order[0] == "gemini-3.5-flash-lite", "the next choice has the most room"
 
 
 def test_exhausting_every_model_still_returns_something_to_try():
@@ -283,3 +283,24 @@ async def test_an_unbounded_call_still_tries_every_candidate():
                       system="s", user="u", max_tokens=10, schema=None)
 
     assert len(tried) == 3, f"all three candidates should be tried, got {tried}"
+
+
+def test_fall_forward_prefers_the_models_with_free_tier_headroom():
+    """Measured 10 Nov 2026: a lite model allows 15 RPM and 500 requests a day,
+    a Flash model 5 and 20. Falling from a lite model onto a Flash one moved a
+    run from a quota with room onto one already exhausted, which is where the
+    429s came from.
+    """
+    from forge.providers.text.gemini import MODEL_PREFERENCE
+
+    lite = [i for i, m in enumerate(MODEL_PREFERENCE) if "flash-lite" in m]
+    flash = [i for i, m in enumerate(MODEL_PREFERENCE) if "flash-lite" not in m]
+    assert lite and flash
+    assert max(lite) < min(flash), (
+        f"a Flash model is tried before a lite one: {MODEL_PREFERENCE}")
+
+
+def test_the_pinned_model_is_the_one_with_the_most_room():
+    from forge.providers.text.gemini import MODEL_PREFERENCE
+
+    assert MODEL_PREFERENCE[0] == "gemini-3.5-flash-lite"

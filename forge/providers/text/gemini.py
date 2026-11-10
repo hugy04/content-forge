@@ -53,12 +53,29 @@ MIN_USEFUL_SECONDS = 8.0
 # Ordered by what a free key can actually reach, measured 9 Nov 2026 - not by
 # version number. The newest ids are the most capacity-constrained, so they sit
 # below the one that answers reliably. Re-check with scripts/gemini_doctor.py.
+# Ordered by free-tier headroom, which is not the same as ordering by
+# capability and was previously the other way round.
+#
+# Measured from the AI Studio rate-limit console, 10 Nov 2026:
+#
+#   gemini-3.5-flash-lite   15 RPM   500 RPD
+#   gemini-3.1-flash-lite   15 RPM   500 RPD
+#   gemini-3.6-flash         5 RPM    20 RPD
+#   gemini-3-flash-preview   5 RPM    20 RPD
+#   gemini-3.8-flash         5 RPM    20 RPD
+#
+# A lite model allows three times the requests per minute and twenty-five
+# times the requests per day. Falling forward from a lite model to a Flash one
+# moved a run from a quota with room onto a quota that was already exhausted,
+# which is where the 429s came from: the pipeline retried its way out of them,
+# so nothing failed, but it was queueing against a wall it had chosen itself.
 MODEL_PREFERENCE: tuple[str, ...] = (
-    "gemini-3.6-flash",
-    "gemini-3-flash-preview",
     "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-flash-lite-latest",
     "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
     "gemini-3.7-flash",
     "gemini-flash-latest",
 )
