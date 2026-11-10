@@ -59,6 +59,7 @@ def build_text_provider(settings: Settings, usage: Usage) -> Any:
         return GeminiTextProvider(
             settings.gemini_api_key, usage,
             default_model=settings.gemini_model,
+            timeout=settings.text_timeout_seconds,
             min_interval=settings.gemini_min_interval_seconds,
         )
     if provider in {"claude", "anthropic"}:

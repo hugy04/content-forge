@@ -203,6 +203,14 @@ code: it is a shared CPU, a cold start, and the 47-second Pollinations pacing th
 a single-IP free instance cannot avoid. Quoted here so the gap is a documented
 property of the deployment rather than a surprise.
 
+**Gating the deployment.** A public URL is also an open endpoint that spends the
+project's free-tier quota for anyone who finds it. Set `BASIC_AUTH_USER` and
+`BASIC_AUTH_PASS` in the Render dashboard and the whole surface asks for a
+username and password; share them with whoever should have access. `/healthz`
+deliberately stays open, so an uptime monitor needs no credentials and a gated
+deployment does not look permanently down. Leave both blank and the app is open,
+which is what local development wants.
+
 **Known limits of the free tier**, stated plainly:
 
 | Limit | Consequence | Production answer |
@@ -210,6 +218,7 @@ property of the deployment rather than a surprise.
 | No persistent disk | `out/` and the SQLite history reset on restart | object storage + Postgres |
 | No Redis | runs `inline`, not `queue` | managed Redis + worker service |
 | Cold start ~60s | first request after idle is slow | uptime ping, or a paid instance |
+| Model availability varies by hour | auto-resolution can fall forward through two 503s before a model answers, and those seconds come out of the run budget | `GEMINI_MODEL` is pinned on the hosted service; `TEXT_TIMEOUT_SECONDS=45` bounds what one unavailable model can cost |
 | One shared egress IP | free Pollinations allows one image per 45s *per IP*, so concurrent visitors queue behind the pacer and some runs land on the card | a keyed image provider, which is per-account rather than per-IP |
 
 ### Alternative: a container

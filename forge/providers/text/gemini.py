@@ -91,7 +91,7 @@ class GeminiTextProvider:
 
     def __init__(self, api_key: str, usage: Usage | None = None,
                  default_model: str = "gemini-3.8-flash",
-                 timeout: float = 120.0, min_interval: float = 0.0):
+                 timeout: float = 45.0, min_interval: float = 0.0):
         if not api_key:
             raise ValueError(
                 "GEMINI_API_KEY is not set. Get a free key at "

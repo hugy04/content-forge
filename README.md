@@ -20,7 +20,7 @@ Built for the Case 2 assignment: an AI-powered content generation workflow.
 | **Variety** | 115,200 combinations across 6 dimensions, with cooldown + recency weighting |
 | **Quality** | 9 deterministic checks, bounded self-repair loop |
 | **Runs as** | FastAPI inline (zero infra) or Celery + Redis (scale) |
-| **Tests** | 112, all offline — no API key needed |
+| **Tests** | 116, all offline — no API key needed |
 
 ---
 
@@ -133,6 +133,9 @@ Everything is env-overridable; see `.env.example` for the full list.
 | `GEMINI_API_KEY` | — | required unless `FAKE_PROVIDERS=1`; free tier |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | auto-resolves if the id has been retired |
 | `ANTHROPIC_API_KEY` | — | only when `TEXT_PROVIDER=claude` |
+| `TEXT_TIMEOUT_SECONDS` | `45` | per text call; a flash model slower than this is not coming back |
+| `BASIC_AUTH_USER` | — | set both to gate the whole surface; blank leaves it open |
+| `BASIC_AUTH_PASS` | — | `/healthz` stays open so uptime monitors need no credentials |
 | `IMAGE_PROVIDERS` | `gemini,pollinations,card` | ordered fallback chain |
 | `TARGET_WORDS_MIN` / `_MAX` | `500` / `800` | the enforced contract |
 | `MAX_REVISIONS` | `2` | bound on the repair loop |

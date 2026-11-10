@@ -49,6 +49,19 @@ class Settings(BaseSettings):
     max_revisions: int = 2
     deadline_seconds: int = 300
 
+    # A flash model that has not answered in this long is not going to. The
+    # default was 120s, which let a single unavailable model consume a third of
+    # the run budget before fall-forward even began - and on the hosted free
+    # tier that starved the draft stage entirely. See docs/RUNBOOK.md.
+    text_timeout_seconds: float = 45.0
+
+    # Optional HTTP basic auth over the whole surface. Blank (the default)
+    # leaves it open, which is what local development and the test suite want;
+    # set both to gate a public deployment. /healthz stays open either way so an
+    # uptime monitor does not need credentials.
+    basic_auth_user: str = ""
+    basic_auth_pass: str = ""
+
     # --- image generation ---
     image_providers: str = "gemini,pollinations,card"
     image_width: int = 1280

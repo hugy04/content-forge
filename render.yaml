@@ -21,6 +21,18 @@ services:
         value: gemini
       - key: GEMINI_API_KEY
         sync: false          # set in the Render dashboard, never in git
+      - key: GEMINI_MODEL
+        # Pinned rather than left to auto-resolution. The newest ids are the
+        # most capacity-constrained, and falling forward through two 503s costs
+        # real seconds the draft stage then does not have. This id served all
+        # four sample runs; the fall-forward stays as the safety net.
+        value: gemini-3.5-flash-lite
+      - key: TEXT_TIMEOUT_SECONDS
+        value: "45"
+      - key: BASIC_AUTH_USER
+        sync: false          # set in the dashboard; blank leaves the app open
+      - key: BASIC_AUTH_PASS
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false          # only needed if TEXT_PROVIDER is switched to claude
       - key: RUN_MODE

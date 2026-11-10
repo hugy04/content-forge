@@ -8,12 +8,15 @@ generic shape is what lets Zapier/Make/a CMS call this without a custom adapter.
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -54,7 +57,58 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Paths that stay reachable without credentials. An uptime monitor has to be
+# able to prove the service is alive without being trusted with a password, and
+# a 401 on /healthz would make a gated deployment look permanently down.
+OPEN_PATHS = {"/healthz"}
+
+
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    """Gate the whole surface behind one shared credential.
+
+    A deployment handed to a reviewer should not also be an open endpoint that
+    spends the project's free-tier quota for anyone who finds the URL. This is
+    deliberately the simplest thing that holds: one shared username and
+    password, no sessions, no user store - and no auth at all when the
+    variables are unset, so local runs and the test suite are untouched. Real
+    multi-user auth is listed in docs/DESIGN.md under what production needs.
+    """
+
+    def __init__(self, app, user: str, password: str) -> None:
+        super().__init__(app)
+        self._user = user
+        self._password = password
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in OPEN_PATHS:
+            return await call_next(request)
+
+        header = request.headers.get("authorization", "")
+        if header.startswith("Basic "):
+            try:
+                user, _, password = base64.b64decode(
+                    header[6:]).decode("utf-8").partition(":")
+            except Exception:
+                user = password = ""
+            # compare_digest on both halves: a plain == leaks length and
+            # position through timing, and it costs nothing to avoid.
+            if (secrets.compare_digest(user, self._user)
+                    and secrets.compare_digest(password, self._password)):
+                return await call_next(request)
+
+        return Response(
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="content-forge"'},
+        )
+
+
 _settings = get_settings()
+if _settings.basic_auth_user and _settings.basic_auth_pass:
+    app.add_middleware(BasicAuthMiddleware,
+                       user=_settings.basic_auth_user,
+                       password=_settings.basic_auth_pass)
+    log.info("basic auth is on; /healthz stays open")
+
 _settings.out_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/artifacts", StaticFiles(directory=str(_settings.out_dir)), name="artifacts")
 
