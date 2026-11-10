@@ -209,3 +209,11 @@ def test_the_elapsed_clock_survives_a_retry(page):
 
 def test_a_retry_says_which_attempt_it_is_on(page):
     assert "attempt ${attemptNo} of ${MAX_ATTEMPTS}" in page
+
+
+def test_the_steps_stay_on_screen_after_the_piece_arrives(page):
+    """They are the account of how it was made, and hiding them at the moment
+    someone finally has time to read them throws that away."""
+    assert 'statusBox.style.display = "none"' not in page
+    assert "All six steps completed." in page
+    assert "finished in ${total}s, inside the 300s budget" in page

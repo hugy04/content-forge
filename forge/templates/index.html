@@ -243,7 +243,7 @@ function paintSteps(active, failedAt){
   }).join("");
   const note = document.getElementById("stepnote");
   if (failedAt !== undefined) { note.textContent = ""; }
-  else if (active >= STEPS.length) { note.textContent = "Done."; }
+  else if (active >= STEPS.length) { note.textContent = "All six steps completed."; }
   else { note.textContent = STEPS[active][2]; }
 }
 
@@ -389,7 +389,14 @@ form.addEventListener("submit", async (e)=>{
     result.style.display = "block";
   } finally {
     clearInterval(timer);
-    if (!failed) { paintSteps(STEPS.length); statusBox.style.display = "none"; }
+    // The stepper stays. Hiding it the moment the piece arrives throws away
+    // the only account of how the piece was made, at exactly the moment
+    // someone has time to read it.
+    if (!failed) {
+      paintSteps(STEPS.length);
+      const total = ((Date.now() - tTotal) / 1000).toFixed(0);
+      elapsed.textContent = `finished in ${total}s, inside the 300s budget`;
+    }
     go.disabled = false; go.textContent = "Generate";
   }
 });
