@@ -231,7 +231,7 @@ const stepsBox = document.getElementById("steps");
 const fill = document.getElementById("fill");
 const elapsed = document.getElementById("elapsed");
 const result = document.getElementById("result");
-let timer, t0;
+let timer, t0, step = 0;
 
 // `active` is the index now running; STEPS.length means every step is done.
 // `failedAt` marks the step that was in flight when the request died.
@@ -291,12 +291,55 @@ document.getElementById("reset").addEventListener("click", ()=>{
 const DIMENSIONS = ["style","angle","audience","art_direction",
                     "palette","composition"];
 
+// A free instance can be recycled mid-request. That surfaces as a TypeError
+// with no status, which is indistinguishable in the browser from the network
+// going away - so the only safe response is to try again and see.
+//
+// Retrying is safe because the server derives an idempotency key from the
+// topic, the format and the date: if the first attempt did reach the server and
+// finish, the retry is handed that same run instead of paying for a second one.
+// Without that key this would be a duplicate-work bug rather than a fix.
+const MAX_ATTEMPTS = 3;
+
+function post(payload){
+  return fetch("/v1/generate", {
+    method:"POST", headers:{"Content-Type":"application/json"}, body: payload
+  }).then(r => r.json());
+}
+
+// Wait for the instance to answer again before spending the retry on a socket
+// that is still closed. /healthz is unauthenticated and cheap.
+async function waitForWake(limitMs){
+  const until = Date.now() + limitMs;
+  while (Date.now() < until){
+    try { if ((await fetch("/healthz", {cache:"no-store"})).ok) return true; }
+    catch(_){ /* still down */ }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
+async function submitWithRetry(payload){
+  for (let attempt = 1; ; attempt++){
+    try {
+      return await post(payload);
+    } catch (err) {
+      // Only a transport failure is worth retrying. A real API error has a
+      // response and should be shown, not silently attempted again.
+      if (!(err instanceof TypeError) || attempt >= MAX_ATTEMPTS) throw err;
+      elapsed.textContent = `connection lost - reconnecting (attempt ${attempt+1} of ${MAX_ATTEMPTS})`;
+      await waitForWake(75000);
+      t0 = Date.now(); step = 0; paintSteps(0);
+    }
+  }
+}
+
 form.addEventListener("submit", async (e)=>{
   e.preventDefault();
   const go = document.getElementById("go");
   go.disabled = true; go.textContent = "Generating…";
   result.style.display = "none"; statusBox.style.display = "block";
-  let step = 0, failed = false; t0 = Date.now(); paintSteps(0);
+  step = 0; failed = false; t0 = Date.now(); paintSteps(0);
   // Progress is advanced on a timer: the server returns one response at the
   // end, so this communicates liveness rather than true stage state.
   timer = setInterval(()=>{
@@ -305,18 +348,16 @@ form.addEventListener("submit", async (e)=>{
     if (secs > (step+1)*14 && step < STEPS.length-1){ step++; paintSteps(step); }
   }, 500);
 
+  // Every dimension the API accepts. An empty select sends null, which the
+  // server reads as "the engine decides this one" - so a form with nothing
+  // touched behaves exactly as it did before the panel existed.
+  const payload = JSON.stringify(DIMENSIONS.reduce((body, key) => {
+    body[key] = document.getElementById(key).value || null;
+    return body;
+  }, { topic: document.getElementById("topic").value }));
+
   try {
-    const res = await fetch("/v1/generate", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      // Every dimension the API accepts. An empty select sends null, which
-      // the server reads as "the engine decides this one" - so a form with
-      // nothing touched behaves exactly as it did before the panel existed.
-      body: JSON.stringify(DIMENSIONS.reduce((body, key) => {
-        body[key] = document.getElementById(key).value || null;
-        return body;
-      }, { topic: document.getElementById("topic").value }))
-    });
-    const data = await res.json();
+    const data = await submitWithRetry(payload);
     render(data.detail || data);
   } catch(err){
     // A dropped connection here is almost always the free instance waking up:

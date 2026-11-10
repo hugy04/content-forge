@@ -48,8 +48,9 @@ STYLES: dict[str, Style] = {
         structure=["claim", "why_consensus_is_wrong", "evidence", "steelman", "conclusion"],
         voice="first-person, confident, willing to disagree",
         guidance=(
-            "Take a falsifiable position in the first paragraph and defend it. "
-            "Steelman the opposing view before answering it. No both-sides hedging."
+            "Say something a reasonable person could disagree with, then defend it. "
+            "A claim nobody would argue with is not a position. Put the opposing "
+            "view at its strongest before answering it. No both-sides hedging."
         ),
     ),
     "trend_analysis": Style(
@@ -68,7 +69,8 @@ STYLES: dict[str, Style] = {
         structure=["framing", "enumerated_items", "synthesis"],
         voice="brisk, concrete, scannable",
         guidance=(
-            "Five to seven items, each with a claim and a supporting specific. "
+            "Five to seven numbered items, each standing alone rather than running "
+            "on as prose. Every item makes a claim and backs it with one specific. "
             "Items must not overlap; order them so the strongest lands first."
         ),
     ),

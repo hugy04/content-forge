@@ -126,3 +126,30 @@ def test_a_format_does_not_claim_a_reading_level(page):
     read as a contradiction next to a Written for of Beginners.
     """
     assert "intelligent reader" not in page
+
+
+def test_a_dropped_connection_retries_itself(page):
+    """A recycled free instance should not cost the reader a button press."""
+    assert "submitWithRetry" in page
+    assert "MAX_ATTEMPTS = 3" in page
+    assert "waitForWake" in page
+
+
+def test_only_a_transport_failure_is_retried(page):
+    """An API error has a response and must be shown, not retried in silence."""
+    assert "if (!(err instanceof TypeError) || attempt >= MAX_ATTEMPTS) throw err;" in page
+
+
+def test_the_retry_waits_for_the_instance_before_spending_an_attempt(page):
+    assert '"/healthz", {cache:"no-store"}' in page
+
+
+@pytest.mark.parametrize("jargon", ["falsifiable", "steelman", "axonometric"])
+def test_no_jargon_reaches_the_dropdown(page, jargon):
+    """The descriptions are read by someone choosing, not by an editor."""
+    assert jargon.lower() not in page.lower()
+
+
+def test_the_list_format_says_it_is_a_list(page):
+    """Otherwise it is indistinguishable from the explanatory article."""
+    assert "numbered items" in page
