@@ -193,3 +193,19 @@ def test_the_label_map_covers_every_dimension(page):
 def test_the_result_shows_the_framing_it_used(page):
     """Image distance is a setting now, so a run has to report it back."""
     assert 'label("composition", sel.composition)' in page
+
+
+def test_the_elapsed_clock_survives_a_retry(page):
+    """The pipeline restarts on a retry; the person's wait does not.
+
+    Showing "3s elapsed" to someone who has been watching for ninety seconds
+    is the page telling them something they can see is untrue.
+    """
+    assert "t0 = tTotal = Date.now()" in page
+    assert "const total = ((Date.now()-tTotal)/1000)" in page
+    # The step pacing keeps its own clock, which does restart.
+    assert "attemptNo = attempt + 1; t0 = Date.now(); step = 0;" in page
+
+
+def test_a_retry_says_which_attempt_it_is_on(page):
+    assert "attempt ${attemptNo} of ${MAX_ATTEMPTS}" in page

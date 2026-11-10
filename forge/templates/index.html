@@ -228,7 +228,7 @@ const statusBox = document.getElementById("status");
 const stepsBox = document.getElementById("steps");
 const elapsed = document.getElementById("elapsed");
 const result = document.getElementById("result");
-let timer, t0, step = 0;
+let timer, t0, tTotal, attemptNo = 1, step = 0;
 
 // `active` is the index now running; STEPS.length means every step is done.
 // `failedAt` marks the step that was in flight when the request died.
@@ -333,7 +333,9 @@ async function submitWithRetry(payload){
       if (!(err instanceof TypeError) || attempt >= MAX_ATTEMPTS) throw err;
       elapsed.textContent = `connection lost - reconnecting (attempt ${attempt+1} of ${MAX_ATTEMPTS})`;
       await waitForWake(75000);
-      t0 = Date.now(); step = 0; paintSteps(0);
+      // The pipeline restarts, so the markers do. The elapsed clock does not:
+      // it is the wait, and the wait kept running.
+      attemptNo = attempt + 1; t0 = Date.now(); step = 0; paintSteps(0);
     }
   }
 }
@@ -343,12 +345,15 @@ form.addEventListener("submit", async (e)=>{
   const go = document.getElementById("go");
   go.disabled = true; go.textContent = "Generating…";
   result.style.display = "none"; statusBox.style.display = "block";
-  step = 0; failed = false; t0 = Date.now(); paintSteps(0);
+  step = 0; failed = false; attemptNo = 1;
+  t0 = tTotal = Date.now(); paintSteps(0);
   // Progress is advanced on a timer: the server returns one response at the
   // end, so this communicates liveness rather than true stage state.
   timer = setInterval(()=>{
     const secs = ((Date.now()-t0)/1000);
-    elapsed.textContent = secs.toFixed(0) + "s elapsed · budget 300s";
+    const total = ((Date.now()-tTotal)/1000);
+    elapsed.textContent = total.toFixed(0) + "s elapsed · budget 300s"
+      + (attemptNo > 1 ? ` · attempt ${attemptNo} of ${MAX_ATTEMPTS}` : "");
     if (secs > (step+1)*14 && step < STEPS.length-1){ step++; paintSteps(step); }
   }, 500);
 
@@ -369,7 +374,7 @@ form.addEventListener("submit", async (e)=>{
     // which is longer than the browser will hold the request open. Saying
     // "TypeError: Load failed" to someone who just wanted an article is not
     // an error message, it is a stack trace with the context removed.
-    const elapsedSecs = (Date.now() - t0) / 1000;
+    const elapsedSecs = (Date.now() - tTotal) / 1000;
     const dropped = err instanceof TypeError;
     clearInterval(timer); paintSteps(step, step); failed = true;
     result.innerHTML = dropped
