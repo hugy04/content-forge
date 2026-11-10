@@ -239,3 +239,10 @@ def test_a_finished_run_offers_a_clean_slate(page):
 def test_the_clean_slate_button_is_hidden_until_there_is_something_to_clear(page):
     assert 'id="newrun" class="pill" hidden' in page
     assert "newrun.hidden = false;" in page
+
+
+def test_the_settings_do_not_wear_the_platform_s_own_chrome(page):
+    """Six native selects read as six different controls, not one row."""
+    assert "appearance:none" in page
+    assert "-webkit-appearance:none" in page
+    assert "image/svg+xml" in page, "one chevron, drawn in the page's own ink"

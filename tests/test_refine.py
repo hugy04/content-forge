@@ -155,3 +155,15 @@ def test_a_revision_scrolls_its_progress_into_view(client):
     """The box is at the foot of a long piece; the stepper is above it."""
     page = client.get("/").text
     assert 'statusBox.scrollIntoView({behavior: "smooth", block: "center"})' in page
+
+
+def test_a_revision_clock_survives_its_own_retry(client):
+    """Generate was fixed for this and the revision path was not.
+
+    The pipeline restarts on a retry, so the markers do; the person's wait
+    does not, and telling them "3s elapsed" after ninety seconds of watching
+    is the page contradicting what they can see.
+    """
+    page = client.get("/").text
+    assert '((Date.now()-tTotal)/1000).toFixed(0) + "s elapsed"' in page
+    assert "attempt ${attemptNo} of ${MAX_ATTEMPTS}" in page
