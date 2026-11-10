@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 from forge.diversity.engine import Selection
+from forge.diversity.taxonomy import COMPOSITIONS
 
 OUTLINE_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -39,9 +40,10 @@ OUTLINE_SCHEMA: dict[str, Any] = {
         },
         "key_takeaways": {"type": "array", "items": {"type": "string"}},
         "image_brief": {"type": "string"},
+        "image_subject_scale": {"type": "string", "enum": ["object", "scene"]},
     },
     "required": ["title", "subtitle", "hook", "meta_description", "keywords",
-                 "sections", "key_takeaways", "image_brief"],
+                 "sections", "key_takeaways", "image_brief", "image_subject_scale"],
     "additionalProperties": False,
 }
 
@@ -103,6 +105,12 @@ football gets a floodlit stand, an empty dugout, a tactics board; a piece about 
 battery recycling gets cells, racking, a sorting line. A desk with a notebook is \
 a failure: it would illustrate any article ever written equally badly, which \
 means it illustrates none of them.
+- image_subject_scale says which the brief is: "object" when the piece is \
+about a thing and the picture should be dominated by that thing (a mango, a \
+battery cell, a torque wrench); "scene" when the story is the setting itself (a \
+dealership forecourt, a sorting line, a trading floor). It decides how close the \
+camera gets, so a wide shot of a warehouse is never returned for a piece about \
+the fruit inside the crates.
 - The image_brief never describes charts, text, or a collage of concepts, and \
 never a real, identifiable person. A synthetic photograph of someone real, \
 attached to an article about them, is a liability whatever the article says - \
@@ -215,6 +223,31 @@ model for it here only applies it twice.
 reader. One sentence, no style jargon."""
 
 
+# A composition is picked before the outline exists, so the engine cannot know
+# whether it is framing a thing or a place. These two deliberately make the
+# subject small, which is right for a setting and wrong for an object.
+WIDE_COMPOSITIONS = {"environmental", "hero_wide"}
+OBJECT_FALLBACK = "close_detail"
+
+
+def composition_for(selection: Selection, outline: dict[str, Any]) -> tuple[str, str | None]:
+    """Return ``(composition_key, note)``, narrowing the frame for an object.
+
+    Diversity is preserved: only two of the six compositions are affected, and
+    only on the runs whose subject is a single thing. The swap is reported so
+    the run record never claims a framing that was not used.
+    """
+    chosen = selection.composition
+    if outline.get("image_subject_scale") != "object":
+        return chosen, None
+    if chosen not in WIDE_COMPOSITIONS:
+        return chosen, None
+    return OBJECT_FALLBACK, (
+        f"composition {chosen!r} would have put the subject small inside a "
+        f"wider setting, but this piece is about a single thing; framed "
+        f"{OBJECT_FALLBACK!r} instead")
+
+
 def image_prompt_user(topic: str, selection: Selection, outline: dict[str, Any]) -> str:
     described = selection.describe()
     return f"""Topic: {topic}
@@ -223,6 +256,6 @@ Image brief: {outline.get('image_brief')}
 
 Apply these visual directions exactly:
 - Medium and style: {described['art_direction']}
-- Composition: {described['composition']}
+- Composition: {COMPOSITIONS[composition_for(selection, outline)[0]]}
 
 Return JSON matching the schema."""

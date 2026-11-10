@@ -1,14 +1,25 @@
 """Stage 5a: turn the editorial image brief into a generation prompt."""
 from __future__ import annotations
 
+import dataclasses
+
 from forge.pipeline.prompts import (
     IMAGE_PROMPT_SCHEMA,
     IMAGE_PROMPT_SYSTEM,
+    composition_for,
     image_prompt_user,
 )
 
 
 async def run(ctx, deps) -> None:
+    # The engine picks a composition before the outline exists, so it cannot
+    # know whether it is framing a thing or a place. Record the correction
+    # rather than letting the run claim a framing it did not use.
+    framing, note = composition_for(ctx.selection, ctx.outline)
+    if note:
+        ctx.warnings.append(note)
+        ctx.selection = dataclasses.replace(ctx.selection, composition=framing)
+
     ctx.image_prompt = await deps.text.complete_json(
         stage="image_prompt",
         model=deps.settings.prompt_model,

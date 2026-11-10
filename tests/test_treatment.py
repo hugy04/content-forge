@@ -157,3 +157,48 @@ def test_stylised_directions_no_longer_discard_all_hue(art, levels):
 
     assert applied == art
     assert _hue_distance(out, src) < _hue_distance(ramp_only, src)
+
+
+# --- composition is chosen before the subject is known ---------------------
+
+def _sel(composition: str):
+    from forge.diversity.engine import Selection
+    return Selection(style="trend_analysis", angle="comparison", audience="investors",
+                     art_direction="collage", palette="forest_clay",
+                     composition=composition)
+
+
+def test_a_wide_frame_is_narrowed_for_a_single_object():
+    """The regression: "mango seasonal fruit" returned a wide warehouse.
+
+    `environmental` is defined as "subject small within a larger environment",
+    which is right for a sorting line and wrong for the fruit in the crates.
+    """
+    from forge.pipeline.prompts import composition_for
+
+    framing, note = composition_for(_sel("environmental"), {"image_subject_scale": "object"})
+    assert framing == "close_detail"
+    assert note and "environmental" in note
+
+
+def test_a_wide_frame_survives_when_the_setting_is_the_story():
+    from forge.pipeline.prompts import composition_for
+
+    for wide in ("environmental", "hero_wide"):
+        assert composition_for(_sel(wide), {"image_subject_scale": "scene"}) == (wide, None)
+
+
+@pytest.mark.parametrize("tight", ["close_detail", "overhead_flatlay",
+                                   "diagonal_dynamic", "centred_symmetry"])
+def test_an_already_tight_frame_is_never_swapped(tight):
+    """Four of six compositions are untouched, so diversity is preserved."""
+    from forge.pipeline.prompts import composition_for
+
+    assert composition_for(_sel(tight), {"image_subject_scale": "object"}) == (tight, None)
+
+
+def test_an_outline_without_the_field_changes_nothing():
+    """Older runs, and any model that omits it, must not be narrowed blindly."""
+    from forge.pipeline.prompts import composition_for
+
+    assert composition_for(_sel("environmental"), {}) == ("environmental", None)
