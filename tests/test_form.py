@@ -214,7 +214,9 @@ def test_a_retry_says_which_attempt_it_is_on(page):
 def test_the_steps_stay_on_screen_after_the_piece_arrives(page):
     """They are the account of how it was made, and hiding them at the moment
     someone finally has time to read them throws that away."""
-    assert 'statusBox.style.display = "none"' not in page
+    # The only place it hides is when the reader clears the page themselves.
+    assert page.count('statusBox.style.display = "none"') == 1
+    assert "newrun.addEventListener" in page
     assert "All six steps completed." in page
     assert "finished in ${total}s, inside the 300s budget" in page
 
@@ -223,3 +225,17 @@ def test_an_audience_describes_who_it_is_not_only_what_it_wants(page):
     """"cost, risk and timing" named their concerns without saying who they are."""
     assert "senior people weighing cost and risk" in page
     assert "cost, risk and timing" not in page
+
+
+def test_a_finished_run_offers_a_clean_slate(page):
+    """Clearing by hand is four actions - empty the topic, reset six selects,
+    scroll past the piece - for one intention."""
+    assert 'id="newrun"' in page
+    assert "New content" in page
+    assert 'topic.value = ""' in page
+    assert 'document.getElementById("reset").click()' in page
+
+
+def test_the_clean_slate_button_is_hidden_until_there_is_something_to_clear(page):
+    assert 'id="newrun" class="pill" hidden' in page
+    assert "newrun.hidden = false;" in page

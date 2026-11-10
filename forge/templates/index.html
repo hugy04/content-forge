@@ -21,9 +21,11 @@
   header{display:flex;align-items:center;gap:12px}
   header h1{flex:1}
   .signout{margin:0}
-  .signout button{width:auto;margin:0;padding:6px 14px;font-size:12px;
-    background:none;color:var(--dim);border:1px solid var(--line);border-radius:99px}
-  .signout button:hover{border-color:var(--accent);color:var(--accent)}
+  .signout button,.pill{width:auto;margin:0;padding:6px 14px;font-size:12px;
+    background:none;color:var(--dim);border:1px solid var(--line);border-radius:99px;
+    cursor:pointer;font-family:inherit}
+  .signout button:hover,.pill:hover{border-color:var(--accent);color:var(--accent)}
+  @media print{.pill{display:none}}
   @media print{.signout{display:none}}
   .tag{font-size:12px;color:var(--dim);border:1px solid var(--line);
        padding:2px 8px;border-radius:99px}
@@ -157,6 +159,7 @@
        a page whose job is to take a topic. The fixtures badge stays, because a
        page serving synthetic output must say so. #}
     {% if fake %}<span class="tag">fixtures</span>{% endif %}
+    <button type="button" id="newrun" class="pill" hidden>New content</button>
     {% if gated %}
     <form method="post" action="/logout" class="signout">
       <button type="submit">Sign out</button>
@@ -299,6 +302,20 @@ function wireGuides(){
     sel.addEventListener("change", paint); paint();
   });
 }
+// Clearing the page by hand - empty the topic, put six selects back, scroll
+// past the piece you just made - is four actions for one intention.
+const newrun = document.getElementById("newrun");
+newrun.addEventListener("click", ()=>{
+  document.getElementById("reset").click();
+  const topic = document.getElementById("topic");
+  topic.value = "";
+  result.style.display = "none"; result.innerHTML = "";
+  statusBox.style.display = "none";
+  newrun.hidden = true;
+  window.scrollTo({top: 0, behavior: "smooth"});
+  topic.focus();
+});
+
 wireGuides();
 document.getElementById("reset").addEventListener("click", ()=>{
   document.querySelectorAll("select[data-auto]").forEach(s=>{
@@ -528,6 +545,7 @@ function render(d){
     </div>`;
   document.getElementById("body").innerHTML = md(body);
   wireRevise(d.run_id);
+  newrun.hidden = false;
   result.style.display = "block";
 }
 </script>
