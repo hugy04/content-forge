@@ -203,6 +203,7 @@ minute to wake. Point an uptime monitor (UptimeRobot, free) at
 | No persistent disk | `out/` and the SQLite history reset on restart | object storage + Postgres |
 | No Redis | runs `inline`, not `queue` | managed Redis + worker service |
 | Cold start ~60s | first request after idle is slow | uptime ping, or a paid instance |
+| One shared egress IP | free Pollinations allows one image per 45s *per IP*, so concurrent visitors queue behind the pacer and some runs land on the card | a keyed image provider, which is per-account rather than per-IP |
 
 ### Alternative: a container
 

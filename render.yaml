@@ -26,7 +26,11 @@ services:
       - key: RUN_MODE
         value: inline
       - key: IMAGE_PROVIDERS
-        value: gemini,pollinations,card
+        value: pollinations,card
+        # Gemini is deliberately absent: a free AI Studio key has no image
+        # quota at all, so leading with it spends a 429 round trip on every
+        # run. The provider ships and is first in the chain on a paid key -
+        # see docs/RUNBOOK.md.
       - key: SINKS
         value: local
       - key: OUT_DIR
@@ -35,3 +39,8 @@ services:
         value: /tmp/forge/forge.db
       - key: DEADLINE_SECONDS
         value: "300"
+      - key: POLLINATIONS_MIN_INTERVAL_SECONDS
+        # Free Pollinations allows one image per 45s per IP, and a Render free
+        # instance is one IP for all callers. Pacing beats retrying: the limiter
+        # queues behind the deadline and degrades to the card if it cannot fit.
+        value: "47"
