@@ -328,3 +328,76 @@ def test_the_second_sweep_is_bounded_by_the_same_deadline():
     source = inspect.getsource(gemini.GeminiTextProvider._call)
     assert "budget=expires_at - time.monotonic()" in source
     assert "remaining > CAPACITY_RETRY_PAUSE + MIN_USEFUL_SECONDS" in source
+
+
+def test_the_second_sweep_is_actually_reached():
+    """The fix shipped unreachable.
+
+    The fall-forward loop re-raised on its last candidate instead of breaking,
+    so the code that decides whether there is budget to wait and try again ran
+    only when it could not help. A run died 70 seconds in with 230 left.
+    """
+    import asyncio
+
+    from forge.providers.retry import ProviderError
+    from forge.providers.text import gemini as module
+
+    attempts: list[str] = []
+
+    class Stub(module.GeminiTextProvider):
+        def __init__(self):
+            self._available = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+            self._resolved, self._exhausted = {}, set()
+            self._timeout, self._model = 45.0, "gemini-3.5-flash-lite"
+
+        async def _resolve(self, requested):
+            return requested
+
+        async def _attempt(self, **kwargs):
+            attempts.append(kwargs["model"])
+            if len(attempts) <= 2:
+                raise ProviderError("gemini 503: high demand")
+            return {"ok": True}
+
+    pause = module.CAPACITY_RETRY_PAUSE
+    module.CAPACITY_RETRY_PAUSE = 0.01
+    try:
+        result = asyncio.run(Stub()._call(
+            stage="draft", model="gemini-3.5-flash-lite", effort="medium",
+            system="s", user="u", max_tokens=100, schema={}, usage=None,
+            budget=120.0))
+    finally:
+        module.CAPACITY_RETRY_PAUSE = pause
+
+    assert result == {"ok": True}
+    assert len(attempts) == 3, f"the list was not swept twice: {attempts}"
+
+
+def test_a_real_error_still_fails_immediately():
+    """Only a capacity failure is worth waiting out."""
+    import asyncio
+
+    from forge.providers.retry import ProviderError
+    from forge.providers.text import gemini as module
+
+    attempts: list[str] = []
+
+    class Stub(module.GeminiTextProvider):
+        def __init__(self):
+            self._available = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+            self._resolved, self._exhausted = {}, set()
+            self._timeout, self._model = 45.0, "gemini-3.5-flash-lite"
+
+        async def _resolve(self, requested):
+            return requested
+
+        async def _attempt(self, **kwargs):
+            attempts.append(kwargs["model"])
+            raise ProviderError("gemini 400: malformed request")
+
+    with pytest.raises(ProviderError):
+        asyncio.run(Stub()._call(
+            stage="draft", model="gemini-3.5-flash-lite", effort="medium",
+            system="s", user="u", max_tokens=100, schema={}, usage=None,
+            budget=120.0))
+    assert len(attempts) == 1, "a 400 must not be retried at all"

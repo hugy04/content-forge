@@ -274,13 +274,19 @@ class GeminiTextProvider:
                 )
             except ProviderError as exc:
                 last = exc
-                if index + 1 < len(candidates) and _is_capacity_failure(exc):
+                if not _is_capacity_failure(exc):
+                    raise          # a real error; retrying will not help
+                if index + 1 < len(candidates):
                     log.warning(
                         "gemini %s unavailable (%s); falling forward to %s",
                         candidate, exc, candidates[index + 1],
                     )
                     continue
-                raise
+                # Out of candidates. Break rather than raise, so the decision
+                # about whether there is budget to wait and sweep again is made
+                # below in one place. Raising here made that code unreachable
+                # for the only case it was written for.
+                break
         # Every candidate was out of capacity. A 503 says "try again later",
         # and later is a real option when the run has most of its five minutes
         # left: giving up at 29 seconds with 270 still on the clock wastes the
