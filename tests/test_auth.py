@@ -105,3 +105,4 @@ def test_the_json_api_is_gated_too(monkeypatch, tmp_path):
     r = client.post("/v1/generate", json={"topic": "anything"})
     assert r.status_code == 401
     assert r.json()["error"] == "authentication required"
+

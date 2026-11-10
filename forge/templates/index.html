@@ -30,6 +30,17 @@
   input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
   .row{display:grid;grid-template-columns:1fr 220px;gap:14px;align-items:end}
   @media (max-width:640px){.row{grid-template-columns:1fr}}
+  details#adv{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  details#adv summary{cursor:pointer;font-size:13px;color:var(--dim);
+    list-style:none;user-select:none}
+  details#adv summary::-webkit-details-marker{display:none}
+  details#adv summary::before{content:"\25B8 ";display:inline-block;
+    transition:transform .15s}
+  details#adv[open] summary::before{transform:rotate(90deg)}
+  details#adv summary:hover{color:var(--ink)}
+  .dims{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px;margin-top:12px}
+  @media (max-width:640px){.dims{grid-template-columns:1fr 1fr}}
   button{margin-top:16px;width:100%;padding:13px;background:var(--accent);color:#13151a;
     border:0;border-radius:8px;font-size:15px;font-weight:650;cursor:pointer}
   button:disabled{opacity:.55;cursor:progress}
@@ -123,8 +134,28 @@
           </select>
         </div>
       </div>
+      <details id="adv">
+        <summary>More options <span style="opacity:.7">&mdash; angle, audience, and the image</span></summary>
+        <div class="dims">
+          {% for key, label, options in dimensions %}
+          <div>
+            <label for="{{ key }}">{{ label }}</label>
+            <select id="{{ key }}" name="{{ key }}">
+              <option value="">Auto</option>
+              {% for value, description in options.items() %}
+              <option value="{{ value }}" title="{{ description }}">{{ value.replace('_', ' ') }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="hint">These six settings are what the prompts are built from.
+           Anything left on Auto is chosen by the diversity engine, which skips
+           whatever recent runs already used. Hover an option to see the exact
+           wording the model is given.</p>
+      </details>
       <button id="go" type="submit">Generate</button>
-      <p class="hint">Leave the format on Auto to let the diversity engine choose a
+      <p class="hint">Leave everything on Auto to let the diversity engine choose a
          format, angle and art direction that recent runs have not used.</p>
     </form>
   </div>
@@ -179,6 +210,9 @@ function md(src){
   }).join("");
 }
 
+const DIMENSIONS = ["style","angle","audience","art_direction",
+                    "palette","composition"];
+
 form.addEventListener("submit", async (e)=>{
   e.preventDefault();
   const go = document.getElementById("go");
@@ -196,10 +230,13 @@ form.addEventListener("submit", async (e)=>{
   try {
     const res = await fetch("/v1/generate", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        topic: document.getElementById("topic").value,
-        style: document.getElementById("style").value || null
-      })
+      // Every dimension the API accepts. An empty select sends null, which
+      // the server reads as "the engine decides this one" - so a form with
+      // nothing touched behaves exactly as it did before the panel existed.
+      body: JSON.stringify(DIMENSIONS.reduce((body, key) => {
+        body[key] = document.getElementById(key).value || null;
+        return body;
+      }, { topic: document.getElementById("topic").value }))
     });
     const data = await res.json();
     render(data.detail || data);
