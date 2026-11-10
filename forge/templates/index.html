@@ -46,11 +46,38 @@
   button:disabled{opacity:.55;cursor:progress}
   .hint{font-size:12px;color:var(--dim);margin-top:10px}
   #status{margin-top:22px;display:none}
-  .steps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-  .step{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);
-        color:var(--dim)}
-  .step.on{border-color:var(--accent);color:var(--accent)}
-  .step.done{border-color:var(--ok);color:var(--ok)}
+  /* Horizontal stepper. Each step owns an equal column and draws its own
+     connector to the left, so the rail lines up with the markers at any width
+     without a separate track element. */
+  .steps{display:flex;margin-bottom:6px}
+  .step{flex:1;position:relative;text-align:center;padding-top:30px;
+        font-size:11px;color:var(--dim);line-height:1.35}
+  .step::before{content:"";position:absolute;top:11px;left:-50%;width:100%;
+        height:2px;background:var(--line);z-index:0}
+  .step:first-child::before{display:none}
+  .step .mark{position:absolute;top:0;left:50%;transform:translateX(-50%);
+        width:22px;height:22px;border-radius:50%;z-index:1;
+        display:flex;align-items:center;justify-content:center;
+        font-size:11px;font-weight:600;
+        background:var(--panel);border:2px solid var(--line);color:var(--dim)}
+  .step b{display:block;font-size:12px;color:var(--dim);font-weight:600}
+  .step span{display:block;opacity:.8;margin-top:1px}
+
+  .step.done::before{background:var(--ok)}
+  .step.done .mark{border-color:var(--ok);background:var(--ok);color:var(--bg)}
+  .step.done b{color:var(--ok)}
+
+  .step.on .mark{border-color:var(--accent);color:var(--accent);
+        animation:pulse 1.1s ease-in-out infinite}
+  .step.on b{color:var(--accent)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(216,176,90,.45)}
+                   50%{box-shadow:0 0 0 6px rgba(216,176,90,0)}}
+
+  .step.fail::before{background:var(--bad)}
+  .step.fail .mark{border-color:var(--bad);color:var(--bad)}
+  .step.fail b{color:var(--bad)}
+  @media (prefers-reduced-motion:reduce){.step.on .mark{animation:none}}
+  @media (max-width:640px){.step span{display:none}}
   .bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
   .bar i{display:block;height:100%;width:0;background:var(--accent);
          transition:width .4s ease}
@@ -163,6 +190,7 @@
   <div id="status" class="panel">
     <div class="steps" id="steps"></div>
     <div class="bar"><i id="fill"></i></div>
+    <p class="hint" id="stepnote"></p>
     <p class="hint" id="elapsed">starting&hellip;</p>
   </div>
 
@@ -171,7 +199,16 @@
 </div>
 
 <script>
-const STEPS = ["plan","outline","draft","qc","image","publish"];
+// Name, one-line description, and the sentence shown while it is running.
+// The descriptions are the stages in forge/pipeline/stages/, in order.
+const STEPS = [
+  ["plan",    "choose settings", "Picking format, angle and art direction the recent runs have not used."],
+  ["outline", "plan the piece",  "Planning the structure: sections, word budgets and the image brief."],
+  ["draft",   "write it",        "Writing the piece against that plan, in the chosen voice."],
+  ["qc",      "check it",        "Checking length, structure and banned phrasing; revising if it misses."],
+  ["image",   "make the image",  "Generating the illustration, then applying the art direction."],
+  ["publish", "save the output", "Writing content.md, image.png and run.json, and recording the run."],
+];
 
 // Wake the instance while the visitor is still typing. A free instance sleeps
 // after 15 minutes idle, and the first request pays ~60s of cold start before
@@ -187,12 +224,22 @@ const elapsed = document.getElementById("elapsed");
 const result = document.getElementById("result");
 let timer, t0;
 
-function paintSteps(active){
-  stepsBox.innerHTML = STEPS.map((s,i)=>{
-    const cls = i < active ? "step done" : (i === active ? "step on" : "step");
-    return `<span class="${cls}">${s}</span>`;
+// `active` is the index now running; STEPS.length means every step is done.
+// `failedAt` marks the step that was in flight when the request died.
+function paintSteps(active, failedAt){
+  stepsBox.innerHTML = STEPS.map(([name, caption], i)=>{
+    let cls = "step", mark = String(i+1);
+    if (i === failedAt)      { cls += " fail"; mark = "!"; }
+    else if (i < active)     { cls += " done"; mark = "\u2713"; }
+    else if (i === active)   { cls += " on"; }
+    return `<div class="${cls}"><i class="mark">${mark}</i>`
+         +  `<b>${name}</b><span>${caption}</span></div>`;
   }).join("");
-  fill.style.width = Math.min(96, (active/STEPS.length)*100) + "%";
+  fill.style.width = Math.min(100, (active/STEPS.length)*100) + "%";
+  const note = document.getElementById("stepnote");
+  if (failedAt !== undefined) { note.textContent = ""; }
+  else if (active >= STEPS.length) { note.textContent = "Done."; }
+  else { note.textContent = STEPS[active][2]; }
 }
 
 function esc(s){ return (s||"").replace(/[&<>"]/g, c =>
@@ -218,7 +265,7 @@ form.addEventListener("submit", async (e)=>{
   const go = document.getElementById("go");
   go.disabled = true; go.textContent = "Generating…";
   result.style.display = "none"; statusBox.style.display = "block";
-  let step = 0; t0 = Date.now(); paintSteps(0);
+  let step = 0, failed = false; t0 = Date.now(); paintSteps(0);
   // Progress is advanced on a timer: the server returns one response at the
   // end, so this communicates liveness rather than true stage state.
   timer = setInterval(()=>{
@@ -248,6 +295,7 @@ form.addEventListener("submit", async (e)=>{
     // an error message, it is a stack trace with the context removed.
     const elapsedSecs = (Date.now() - t0) / 1000;
     const dropped = err instanceof TypeError;
+    clearInterval(timer); paintSteps(step, step); failed = true;
     result.innerHTML = dropped
       ? `<div class="panel err">The connection dropped after ${elapsedSecs.toFixed(0)}s.
          This instance sleeps when idle and takes about a minute to wake, which is
@@ -256,8 +304,8 @@ form.addEventListener("submit", async (e)=>{
       : `<div class="panel err">Request failed: ${esc(String(err))}</div>`;
     result.style.display = "block";
   } finally {
-    clearInterval(timer); paintSteps(STEPS.length);
-    statusBox.style.display = "none";
+    clearInterval(timer);
+    if (!failed) { paintSteps(STEPS.length); statusBox.style.display = "none"; }
     go.disabled = false; go.textContent = "Generate";
   }
 });
@@ -296,8 +344,6 @@ function render(d){
         ${art.markdown_url_path ? `<a href="${art.markdown_url_path}" download>Download .md</a>` : ""}
         ${art.url_path ? `<a href="${art.url_path}" download>Download image</a>` : ""}
       </div>
-      <p class="hint">run <code>${esc(d.run_id||"")}</code> ·
-         <a href="/v1/runs/${esc(d.run_id||"")}">run record</a></p>
     </div>`;
   document.getElementById("body").innerHTML = md(body);
   result.style.display = "block";

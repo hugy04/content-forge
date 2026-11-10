@@ -49,3 +49,20 @@ def test_every_added_control_defaults_to_auto(page):
     """An untouched form behaves exactly as it did before the panel existed."""
     assert page.count('<option value="">Auto</option>') == len(DIMENSIONS) - 1
     assert '<option value="">Auto (rotate for diversity)</option>' in page
+
+
+def test_the_stepper_names_every_pipeline_stage(page):
+    """The six markers are the six stages, so the page cannot misdescribe them."""
+    for stage in ("plan", "outline", "draft", "qc", "image", "publish"):
+        assert f'"{stage}"' in page
+
+
+def test_the_run_id_is_not_shown_to_a_reader(page):
+    """An internal identifier is for the run record, not the finished piece."""
+    assert "run record</a>" not in page
+
+
+def test_the_stepper_has_a_failure_state(page):
+    """A dropped request should show where it stopped, not just vanish."""
+    assert "step.fail" in page
+    assert "paintSteps(step, step)" in page
